@@ -1,0 +1,467 @@
+<!-- 
+ * Copyright (c) 2026 (주)리한 (ReHAN Co. LTD.)
+ * All rights reserved.
+ *
+ * 이 소프트웨어와 관련 문서의 저작권은 (주)리한에 있으며,
+ * 저작권자의 서면 동의 없이 무단으로 복제, 배포, 수정, 전송할 수 없습니다.
+ * 
+ * This software is the confidential and proprietary information of [ReHAN Co. LTD.].
+ * You shall not disclose such Confidential Information and shall use it only in
+ * accordance with the terms of the license agreement you entered into with [ReHAN Co. LTD.].
+  -->
+
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>PETMON Machine</title>
+        <link rel="stylesheet" href="./css/styles.css" />
+        <script type="text/javascript">
+            //우클릭 방지
+            document.oncontextmenu = function () {
+                return false;
+            };
+        </script>
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0"
+        />
+    </head>
+    <body oncontextmenu="return false;" onselectstart="return false" ondragstart="return false;">
+        <!-- 메인 화면과 상태 표시 -->
+        <div class="main-layout">
+            <!-- 메인 화면 -->
+            <div id="main-screen" class="screen">
+                <div class="main-left">
+                    <h1 class="petmon-title">PETMON <span id="branch-name" class="center-title"></span></h1>
+
+                    <h2 class="main-guide-title">이용 방법</h2>
+                    <div class="main-guide">
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="90" height="90" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="10" fill="#1d4ed8" />
+                                    <path d="M10 8l6 4-6 4V8z" fill="#fff" />
+                                </svg>
+                            </div>
+                            <div class="step-title">1. 시작하기</div>
+                            <div class="step-desc">아래 <b>시작하기</b> 버튼을 눌러주세요.</div>
+                        </div>
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="90" height="100" viewBox="0 0 24 24" fill="none">
+                                    <rect x="3" y="2" width="18" height="22" rx="3" fill="#0ea5e9" />
+                                    <rect x="6" y="6" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="10.5" y="6" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="15" y="6" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="6" y="10.5" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="10.5" y="10.5" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="15" y="10.5" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="6" y="15" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="10.5" y="15" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="15" y="15" width="3" height="3" rx="1.5" fill="#fff" />
+                                    <rect x="10.5" y="19" width="3" height="3" rx="1.5" fill="#fff" />
+                                </svg>
+                            </div>
+                            <div class="step-title">2. 전화번호 입력</div>
+                            <div class="step-desc">화면의 숫자 키패드로 <b>휴대폰 번호</b>를 입력하세요.</div>
+                        </div>
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="130" height="130" viewBox="0 0 90 90" fill="none" aria-hidden="true">
+                                    <!-- 사다리꼴 투입구 (위 넓고 아래 좁음으로 뒤집기) -->
+                                    <polygon
+                                        points="30,36 60,36 54,60 36,60"
+                                        fill="#0b1220"
+                                        stroke="#60a5fa"
+                                        stroke-width="3"
+                                    />
+                                    <!-- 뚜껑 (원) : 중앙 정렬, 투입 직전 위치 -->
+                                    <circle cx="45" cy="30" r="10" fill="#60a5fa" stroke="#1d4ed8" stroke-width="2" />
+                                    <!-- 하이라이트 -->
+                                    <ellipse cx="45" cy="33" rx="4" ry="1.6" fill="#93c5fd" opacity="0.25" />
+                                </svg>
+                            </div>
+                            <div class="step-title">3. 뚜껑 넣기</div>
+                            <div class="step-desc">뚜껑 투입구에 <b>병뚜껑</b>을 먼저 넣어주세요.</div>
+                        </div>
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="130" height="130" viewBox="0 0 90 90" fill="none" aria-hidden="true">
+                                    <circle cx="45" cy="45" r="14" fill="#ffffff" stroke="#3772ff" stroke-width="4" />
+                                    <polygon
+                                        points="40,18 50,18 45,38"
+                                        fill="#f59e0b"
+                                        stroke="#fbbf24"
+                                        stroke-width="2"
+                                    />
+                                    <polygon
+                                        points="40,72 50,72 45,52"
+                                        fill="#f59e0b"
+                                        stroke="#fbbf24"
+                                        stroke-width="2"
+                                    />
+                                </svg>
+                            </div>
+                            <div class="step-title">4. 띠 분리 · 투입</div>
+                            <div class="step-desc">
+                                페트병 입구의 <b>띠</b>를 분리하고 문이 열리면 <b>투입</b>하세요.
+                            </div>
+                        </div>
+                        <div id="status-host-main">
+                            <div id="status-section" class="status-section">
+                                <div class="status-card">
+                                    <h2 class="status-title">가동 상태</h2>
+                                    <div id="arduino-status" class="status-value status-green">정상</div>
+                                </div>
+                                <div class="status-card alt">
+                                    <h2 class="status-title">투명 페트병 투입</h2>
+                                    <div id="machine-status" class="status-value status-green">가능</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="login-button" class="main-start-btn" aria-label="시작하기">시작하기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 프로세스 화면 -->
+        <div id="process-screen" class="screen">
+            <div class="process-layout">
+                <div class="process-box">
+                    <div class="process-message" id="process-message" role="status" aria-live="polite"></div>
+                    <div class="process-progress" aria-hidden="true">
+                        <div class="progress-fill" id="process-progress-fill"></div>
+                    </div>
+                    <button id="stop-button" disabled>종료하기</button>
+                </div>
+                <div id="status-host-process"></div>
+            </div>
+        </div>
+
+        <!-- 종료 화면 -->
+        <div id="end-screen" class="screen">
+            <div class="end-box">
+                <h2>자원순환에 동참해주셔서 감사합니다 ✅</h2>
+                <p id="end-countdown">10초 뒤 자동으로 처음 화면으로 돌아갑니다.</p>
+                <div class="end-btns">
+                    <button id="return-home">처음으로 돌아가기</button>
+                    <button id="add-more-button">추가투입</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 페트병 끼임 화면 -->
+        <div id="jam-screen" class="screen">
+            <div class="end-box">
+                <!-- 내용은 index.js에서 동적으로 생성됨 -->
+            </div>
+        </div>
+
+        <!-- 오류 화면 -->
+        <div id="error-screen" class="screen">
+            <div class="end-box">
+                <h2>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 3l9 16H3l9-16z" fill="#ef4444" />
+                        <rect x="11" y="9" width="2" height="6" fill="#fff" />
+                        <rect x="11" y="16.5" width="2" height="2" fill="#fff" />
+                    </svg>
+                    기기 오류가 발생했습니다
+                </h2>
+                <p id="error-message">모터가 동작했지만 15초 이내에 센서가 감지되지 않았습니다.</p>
+                <p id="error-phone">입력한 전화번호: -</p>
+                <p id="error-countdown">10초 뒤 처음 화면으로 돌아가며, 장비 상태는 점검중으로 전환됩니다.</p>
+                <div class="end-btns">
+                    <button id="error-return-home">처음으로 돌아가기</button>
+                    <button id="call-support">고객센터에게 전화하기 (1644-1224)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 로그인 팝업 -->
+        <div id="login-popup">
+            <div class="popup-content">
+                <h2>전화번호를 입력하세요</h2>
+                <input type="tel" id="phone-number" maxlength="13" placeholder="010-1234-5678" />
+                <p class="pin-desc" style="margin-top: 6px; font-size: 0.9em; color: #888">
+                    1분간 미입력 시 자동으로 창이 닫힙니다.
+                </p>
+                <div class="keypad">
+                    <button>1</button>
+                    <button>2</button>
+                    <button>3</button>
+                    <button>4</button>
+                    <button>5</button>
+                    <button>6</button>
+                    <button>7</button>
+                    <button>8</button>
+                    <button>9</button>
+                    <button class="key-del">←</button>
+                    <button>0</button>
+                    <button class="key-clear">C</button>
+                </div>
+                <button id="login-submit">다음</button>
+            </div>
+        </div>
+
+        <!-- 관리자 PIN 팝업 (6자리) -->
+        <div id="admin-pin-popup" class="pin-modal">
+            <div class="pin-content" role="dialog" aria-modal="true" aria-labelledby="pin-title">
+                <h2 id="pin-title">관리자 비밀번호</h2>
+                <p class="pin-desc">비밀번호를 입력하세요</p>
+                <input
+                    id="admin-pin-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                />
+                <p class="pin-desc" style="margin-top: 6px; font-size: 0.9em; color: #888">
+                    무단 접속 시 법적으로 처벌받을 수 있습니다.
+                </p>
+
+                <div class="pin-keypad" aria-label="관리자 키패드">
+                    <button data-k="1">1</button>
+                    <button data-k="2">2</button>
+                    <button data-k="3">3</button>
+                    <button data-k="4">4</button>
+                    <button data-k="5">5</button>
+                    <button data-k="6">6</button>
+                    <button data-k="7">7</button>
+                    <button data-k="8">8</button>
+                    <button data-k="9">9</button>
+                    <button data-k="del" class="pin-key">←</button>
+                    <button data-k="0">0</button>
+                    <button data-k="clr" class="pin-key">C</button>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 10px">
+                    <button id="admin-pin-cancel" class="pin-secondary">취소</button>
+                    <button id="admin-pin-submit" class="pin-primary">확인</button>
+                </div>
+                <div id="admin-pin-error" style="margin-top: 10px; color: #ffb4b4; min-height: 1.2em"></div>
+            </div>
+        </div>
+
+        <!-- Manager Repair PIN 팝업 (4자리) -->
+        <div id="manager-repair-pin-popup" class="pin-modal">
+            <div class="pin-content" role="dialog" aria-modal="true" aria-labelledby="repair-pin-title">
+                <h2 id="repair-pin-title">수리 관리자 비밀번호</h2>
+                <p class="pin-desc">비밀번호를 입력하세요</p>
+                <input
+                    id="manager-repair-pin-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="4"
+                    autocomplete="one-time-code"
+                />
+                <p class="pin-desc" style="margin-top: 6px; font-size: 0.9em; color: #888">
+                    무단 접속 시 법적으로 처벌받을 수 있습니다.
+                </p>
+
+                <div class="pin-keypad" aria-label="수리 관리자 키패드">
+                    <button data-k="1">1</button>
+                    <button data-k="2">2</button>
+                    <button data-k="3">3</button>
+                    <button data-k="4">4</button>
+                    <button data-k="5">5</button>
+                    <button data-k="6">6</button>
+                    <button data-k="7">7</button>
+                    <button data-k="8">8</button>
+                    <button data-k="9">9</button>
+                    <button data-k="del" class="pin-key">←</button>
+                    <button data-k="0">0</button>
+                    <button data-k="clr" class="pin-key">C</button>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 10px">
+                    <button id="manager-repair-pin-cancel" class="pin-secondary">취소</button>
+                    <button id="manager-repair-pin-submit" class="pin-primary">확인</button>
+                </div>
+                <div id="manager-repair-pin-error" style="margin-top: 10px; color: #ffb4b4; min-height: 1.2em"></div>
+            </div>
+        </div>
+
+        <div id="admin-toolbar">
+            <div id="test-controls">
+                <span id="test-mode-badge">테스트모드: OFF</span>
+                <button id="btn-toggle-test">토글</button>
+                <button id="btn-test-error">에러</button>
+                <button id="btn-skip-cutter">띠 건너뛰기</button>
+                <!-- 관리자 모드 종료 버튼은 JS에서 주입/제어 -->
+            </div>
+            <!-- 관리자 모드 진입 트리거: 시계 왼쪽 투명 버튼 (1초 내 4회 클릭) -->
+            <button id="admin-mode-trigger" aria-label="Admin Mode Trigger"></button>
+            <span id="admin-time"></span>
+        </div>
+        <!-- 키오스크 화면에서 사용자에게 관리자가 입력할 수 있는 메시지 모달 띄우기-->
+        <div
+            id="admin-message-modal"
+            class="pin-modal"
+            style="
+                display: none;
+
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                height: 100%;
+            "
+        >
+            <div
+                class="pin-content"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-message-title"
+                style="width: 720px; height: 480px"
+            >
+                <h2 id="admin-message-title" style="display: flex">관리자 메시지</h2>
+                <div id="font-size-area" style="margin-bottom: 8px; display: flex; align-items: center; gap: 4px">
+                    <button
+                        id="font-increase-btn"
+                        style="margin-right: 8px; padding: 10px 20px; font-size: 16px; cursor: pointer"
+                    >
+                        A+
+                    </button>
+                    <button id="font-decrease-btn" style="padding: 10px 20px; font-size: 16px; cursor: pointer">
+                        A-
+                    </button>
+                </div>
+                <textarea
+                    id="admin-message-input"
+                    rows="4"
+                    maxlength="500"
+                    placeholder="관리자가 메시지를 입력할 공간입니다. 잠시만 기다려주세요."
+                    style="
+                        width: 100%;
+                        height: 100%;
+                        font-size: 1.5em;
+                        padding: 8px;
+                        background-color: #000;
+                        color: #fff;
+                        border-radius: 2px;
+                    "
+                ></textarea>
+                <button
+                    id="admin-message-close-btn"
+                    style="
+                        display: none;
+                        margin-top: 12px;
+                        padding: 12px 24px;
+                        font-size: 1.2em;
+                        cursor: pointer;
+                        background-color: #ef4444;
+                        color: #fff;
+                        border: none;
+                        border-radius: 4px;
+                    "
+                >
+                    닫기
+                </button>
+            </div>
+        </div>
+
+        <script src="./config.js"></script>
+        <script type="module" src="./src/index.js"></script>
+
+        <script src="./src/time.js"></script>
+        <div class="qr-widget" aria-label="PETMON QR">
+            <div class="qr-caption">회원가입 및 포인트 확인<br />▼</div>
+            <button id="secret-exit-btn" class="secret-exit" aria-label="포인트 내역 확인">
+                <img src="./img/petmon_QR.png" alt="포인트 내역 확인 QR" />
+            </button>
+        </div>
+        <!-- 숨겨진 관리자 진입 트리거 (4회 클릭) -->
+        <button id="admin-hidden-trigger" aria-label="Admin Hidden Trigger"></button>
+        <script src="./src/message.js"></script>
+        <!-- Externalized inline scripts -->
+        <script src="./src/adminPin.js"></script>
+        <script src="./src/adminTriggers.js"></script>
+        <script src="./src/secretExit.js"></script>
+        <script src="./src/managerRepairTrigger.js"></script>
+        <script src="./src/hotkeys.js"></script>
+        <script>
+            document.addEventListener('keydown', function (e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    alert('무단 저장은 금지되어 있습니다.');
+                }
+            });
+            // document.addEventListener('keydown', function (e) {
+            //     if (e.key === 'F12') {
+            //         e.preventDefault();
+            //         alert('어딜 열어볼려고ㅋㅋㅋ');
+            //     }
+            // });
+        </script>
+        <!-- <script src="./src/navGuard.js"></script> -->
+        <script>
+            // 부트 체크: 전체 점검 플래그가 켜져 있으면 maintenance.html 로 이동
+            (function () {
+                try {
+                    const on = sessionStorage.getItem('petmon.globalMaintenance') === '1';
+                    if (on) {
+                        // index로 들어오더라도 전역 점검이면 안내 페이지로 강제 이동
+                        location.replace('./maintenance.html');
+                    }
+                } catch {}
+            })();
+        </script>
+        <script>
+            // 유지보수 상태 UI 적용
+            (function () {
+                const DEV_FLAG = 'petmon.deviceMaintenance';
+                const GBL_FLAG = 'petmon.globalMaintenance';
+
+                function setStatus(el, text, cls) {
+                    if (!el) return;
+                    el.textContent = text;
+                    el.classList.remove('status-green', 'status-yellow', 'status-red');
+                    if (cls) el.classList.add(cls);
+                }
+
+                function updateMainMaintUI() {
+                    try {
+                        const devOn = sessionStorage.getItem(DEV_FLAG) === '1';
+                        const gblOn = sessionStorage.getItem(GBL_FLAG) === '1';
+                        const on = devOn || gblOn || !!window.__maintenanceMode;
+
+                        const arduinoEl = document.getElementById('arduino-status');
+                        const machineEl = document.getElementById('machine-status');
+                        const startBtn = document.getElementById('login-button');
+
+                        if (on) {
+                            setStatus(arduinoEl, '준비중', 'status-red');
+                            setStatus(machineEl, '불가능', 'status-red');
+                            if (startBtn) startBtn.disabled = true;
+                        } else {
+                            setStatus(arduinoEl, '정상', 'status-green');
+                            // machineEl에 개수 표시
+                            if (machineEl) {
+                                try {
+                                    const count = localStorage.getItem('petmon.totalBottles') || '0';
+                                    machineEl.textContent = count + '개';
+                                    machineEl.classList.remove('status-green', 'status-yellow', 'status-red');
+                                    machineEl.classList.add('status-green');
+                                } catch {
+                                    setStatus(machineEl, '가능', 'status-green');
+                                }
+                            }
+                            if (startBtn) startBtn.disabled = false;
+                        }
+                    } catch {}
+                }
+
+                // 초기 적용
+                document.addEventListener('DOMContentLoaded', updateMainMaintUI);
+
+                // admin에서 보낸 이벤트/스토리지 변경 수신
+                window.addEventListener('petmon:maintenance-change', updateMainMaintUI);
+                window.addEventListener('storage', (e) => {
+                    if (e.key === '__petmon_maint_bcast' || e.key === DEV_FLAG || e.key === GBL_FLAG) {
+                        updateMainMaintUI();
+                    }
+                });
+            })();
+        </script>
+    </body>
+</html>

@@ -1,0 +1,957 @@
+<!-- 
+ * Copyright (c) 2026 (주)리한 (ReHAN Co. LTD.)
+ * All rights reserved.
+ *
+ * 이 소프트웨어와 관련 문서의 저작권은 (주)리한에 있으며,
+ * 저작권자의 서면 동의 없이 무단으로 복제, 배포, 수정, 전송할 수 없습니다.
+ * 
+ * This software is the confidential and proprietary information of [ReHAN Co. LTD.].
+ * You shall not disclose such Confidential Information and shall use it only in
+ * accordance with the terms of the license agreement you entered into with [ReHAN Co. LTD.].
+  -->
+
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0"
+        />
+        <title>CUPBOX Machine</title>
+        <script type="text/javascript">
+            //우클릭 방지
+            document.oncontextmenu = function () {
+                return false;
+            };
+        </script>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Malgun Gothic', '맑은 고딕', 'Noto Sans KR', sans-serif;
+                background: #0a0e27;
+                color: #ffffff;
+                width: 100vw;
+                height: 100vh;
+                padding: 0;
+                overflow: hidden;
+                position: relative;
+            }
+
+            /* 메인 레이아웃 - 세로 모니터 기준 */
+            .main-layout {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                background: linear-gradient(180deg, #0a0e27 0%, #1a1f3a 100%);
+            }
+
+            .screen {
+                display: none;
+                width: 100%;
+                height: 100%;
+            }
+
+            .screen.active,
+            #main-screen {
+                display: flex;
+            }
+
+            /* 메인 화면 */
+            #main-screen {
+                width: 100%;
+                height: 100%;
+                padding: 0;
+            }
+
+            .main-left {
+                width: 100%;
+                height: 100%;
+                padding: 60px 80px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+
+            /* 타이틀 */
+            .cupbox-title {
+                font-size: 6em;
+                font-weight: 800;
+                color: #3772ff;
+                text-shadow: 0 0 30px rgba(55, 114, 255, 0.6);
+                letter-spacing: 0.08em;
+                margin-bottom: 50px;
+                text-align: left;
+            }
+
+            /* 이용 방법 섹션 */
+            .main-guide-title {
+                font-size: 2.8em;
+                color: #94a3b8;
+                font-weight: 600;
+                margin-bottom: 30px;
+                text-align: left;
+            }
+
+            .main-guide {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 25px;
+                margin-bottom: 40px;
+            }
+
+            .guide-step {
+                display: flex;
+                align-items: center;
+                gap: 30px;
+                background: rgba(23, 29, 57, 0.6);
+                padding: 25px 35px;
+                border-radius: 16px;
+                border: 2px solid rgba(55, 114, 255, 0.2);
+                transition: all 0.3s ease;
+                backdrop-filter: blur(10px);
+            }
+
+            .guide-step:hover {
+                border-color: rgba(55, 114, 255, 0.5);
+                background: rgba(23, 29, 57, 0.8);
+                transform: translateX(5px);
+            }
+
+            .guide-img {
+                flex-shrink: 0;
+                width: 100px;
+                height: 100px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .guide-img svg {
+                filter: drop-shadow(0 0 10px rgba(55, 114, 255, 0.3));
+            }
+
+            .guide-content {
+                flex: 1;
+            }
+
+            .step-title {
+                font-size: 1.8em;
+                font-weight: 700;
+                color: #ffffff;
+                margin-bottom: 8px;
+            }
+
+            .step-desc {
+                font-size: 1.3em;
+                color: #94a3b8;
+                line-height: 1.4;
+            }
+
+            .step-desc b {
+                color: #3772ff;
+                font-weight: 600;
+            }
+
+            /* 상태 섹션 */
+            .status-section {
+                display: flex;
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+
+            .status-card {
+                flex: 1;
+                background: rgba(23, 29, 57, 0.8);
+                padding: 25px;
+                border-radius: 12px;
+                border: 2px solid rgba(55, 114, 255, 0.2);
+                text-align: center;
+            }
+
+            .status-title {
+                font-size: 1.3em;
+                color: #94a3b8;
+                margin-bottom: 12px;
+                font-weight: 500;
+            }
+
+            .status-value {
+                font-size: 1.8em;
+                font-weight: 700;
+            }
+
+            .status-green {
+                color: #10b981;
+            }
+
+            .status-red {
+                color: #ef4444;
+            }
+
+            .status-yellow {
+                color: #f59e0b;
+            }
+
+            /* 시작하기 버튼 */
+            .main-start-btn {
+                width: 100%;
+                padding: 40px;
+                font-size: 3em;
+                font-weight: 800;
+                color: #ffffff;
+                background: linear-gradient(135deg, #3772ff 0%, #2563eb 100%);
+                border: none;
+                border-radius: 20px;
+                cursor: pointer;
+                box-shadow: 0 10px 40px rgba(55, 114, 255, 0.5);
+                transition: all 0.3s ease;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .main-start-btn::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+                transition: left 0.6s;
+            }
+
+            .main-start-btn:hover:not(:disabled)::before {
+                left: 100%;
+            }
+
+            .main-start-btn:hover:not(:disabled) {
+                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                transform: translateY(-5px);
+                box-shadow: 0 15px 50px rgba(55, 114, 255, 0.7);
+            }
+
+            .main-start-btn:disabled {
+                background: #475569;
+                cursor: not-allowed;
+                box-shadow: none;
+                opacity: 0.6;
+            }
+
+            /* 프로세스 화면 */
+            .process-screen {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(180deg, #0a0e27 0%, #1a1f3a 100%);
+                z-index: 1000;
+            }
+
+            .process-screen.active {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .process-header {
+                position: absolute;
+                top: 50px;
+                left: 80px;
+            }
+
+            .process-header h2 {
+                font-size: 3.5em;
+                color: #3772ff;
+                font-weight: 800;
+                text-shadow: 0 0 30px rgba(55, 114, 255, 0.6);
+                letter-spacing: 0.08em;
+            }
+
+            .process-content {
+                text-align: center;
+                padding: 80px;
+                width: 100%;
+            }
+
+            .process-icon {
+                font-size: 16em;
+                margin-bottom: 50px;
+                animation: pulse 2s infinite;
+                filter: drop-shadow(0 0 30px rgba(55, 114, 255, 0.6));
+            }
+
+            .process-title {
+                font-size: 4em;
+                color: #ffffff;
+                font-weight: 800;
+                margin-bottom: 30px;
+                text-shadow: 0 2px 15px rgba(0, 0, 0, 0.4);
+            }
+
+            .process-description {
+                font-size: 2.2em;
+                color: #94a3b8;
+                margin-bottom: 60px;
+                font-weight: 400;
+                line-height: 1.5;
+            }
+
+            .process-progress {
+                font-size: 2.8em;
+                color: #3772ff;
+                font-weight: 700;
+                margin-top: 45px;
+            }
+
+            @keyframes pulse {
+                0%,
+                100% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+                50% {
+                    transform: scale(1.1);
+                    opacity: 0.8;
+                }
+            }
+
+            /* 투입 완료 버튼 */
+            .btn-confirm {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                font-size: 2.8em;
+                padding: 40px 100px;
+                border: none;
+                border-radius: 18px;
+                cursor: pointer;
+                box-shadow: 0 10px 30px rgba(16, 185, 129, 0.5);
+                transition: all 0.3s ease;
+                font-weight: 800;
+                margin-top: 50px;
+            }
+
+            .btn-confirm:hover {
+                background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                transform: translateY(-5px);
+                box-shadow: 0 15px 40px rgba(16, 185, 129, 0.7);
+            }
+
+            /* 긴급정지 버튼 */
+            .btn-emergency {
+                position: fixed;
+                bottom: 50px;
+                right: 50px;
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                color: white;
+                font-size: 1.6em;
+                padding: 25px 50px;
+                border: none;
+                border-radius: 14px;
+                cursor: pointer;
+                box-shadow: 0 8px 25px rgba(239, 68, 68, 0.6);
+                transition: all 0.3s ease;
+                font-weight: 700;
+                z-index: 2000;
+                border: 2px solid rgba(255, 255, 255, 0.15);
+            }
+
+            .btn-emergency:hover {
+                background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                transform: scale(1.1);
+                box-shadow: 0 10px 30px rgba(239, 68, 68, 0.8);
+            }
+
+            /* 관리자 영역 (숨김) */
+            .admin-panel {
+                position: fixed;
+                bottom: 20px;
+                left: 20px;
+                opacity: 0.05;
+                transition: opacity 0.3s;
+                z-index: 1500;
+            }
+
+            .admin-panel:hover {
+                opacity: 1;
+            }
+
+            .admin-panel button {
+                background: rgba(30, 41, 59, 0.9);
+                color: #94a3b8;
+                border: 1px solid rgba(55, 114, 255, 0.3);
+                padding: 14px 22px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-size: 1.1em;
+                margin-right: 10px;
+                transition: all 0.3s ease;
+            }
+
+            .admin-panel button:hover {
+                background: rgba(55, 114, 255, 0.3);
+                color: #3772ff;
+                border-color: #3772ff;
+            }
+
+            .log-popup {
+                display: none;
+                position: fixed;
+                bottom: 100px;
+                left: 20px;
+                width: 650px;
+                height: 550px;
+                background: rgba(23, 29, 57, 0.95);
+                border-radius: 16px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+                padding: 30px;
+                z-index: 3000;
+                border: 2px solid rgba(55, 114, 255, 0.4);
+                backdrop-filter: blur(15px);
+            }
+
+            .log-popup.active {
+                display: block;
+            }
+
+            .log-popup textarea {
+                width: 100%;
+                height: calc(100% - 70px);
+                border: 1px solid rgba(55, 114, 255, 0.3);
+                border-radius: 10px;
+                padding: 15px;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 1em;
+                resize: none;
+                background: rgba(10, 14, 39, 0.9);
+                color: #10b981;
+            }
+
+            .log-popup-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+
+            .log-popup-header h4 {
+                font-size: 1.5em;
+                color: #3772ff;
+                font-weight: 700;
+            }
+
+            .log-popup-header button {
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                color: white;
+                border: none;
+                padding: 10px 18px;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-size: 1em;
+            }
+
+            .log-popup-header button:hover {
+                background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                transform: scale(1.08);
+            }
+
+            /* 관리자 툴바 */
+            #admin-toolbar {
+                position: fixed;
+                top: 0;
+                right: 0;
+                padding: 20px 30px;
+                display: flex;
+                align-items: center;
+                gap: 20px;
+                z-index: 2500;
+                background: rgba(23, 29, 57, 0.8);
+                backdrop-filter: blur(15px);
+                border-bottom-left-radius: 16px;
+            }
+
+            #admin-time {
+                font-size: 1.3em;
+                color: #94a3b8;
+                font-weight: 600;
+                font-family: 'Consolas', monospace;
+            }
+
+            #test-controls {
+                display: none;
+                gap: 12px;
+                align-items: center;
+            }
+
+            #test-mode-badge {
+                padding: 8px 16px;
+                background: rgba(239, 68, 68, 0.25);
+                border: 1px solid #ef4444;
+                border-radius: 8px;
+                font-size: 1em;
+                color: #ef4444;
+                font-weight: 700;
+            }
+
+            #test-controls button {
+                padding: 8px 18px;
+                background: rgba(55, 114, 255, 0.25);
+                color: #3772ff;
+                border: 1px solid rgba(55, 114, 255, 0.6);
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 1em;
+                transition: all 0.3s ease;
+                font-weight: 600;
+            }
+
+            #test-controls button:hover {
+                background: rgba(55, 114, 255, 0.5);
+                border-color: #3772ff;
+            }
+        </style>
+    </head>
+    <body oncontextmenu="return false;" onselectstart="return false" ondragstart="return false;">
+        <!-- 관리자 툴바 -->
+        <div id="admin-toolbar">
+            <div id="test-controls">
+                <span id="test-mode-badge">테스트모드: OFF</span>
+            </div>
+            <span id="admin-time"></span>
+        </div>
+
+        <!-- 메인 레이아웃 -->
+        <div class="main-layout">
+            <!-- 메인 화면 -->
+            <div id="main-screen" class="screen active">
+                <div class="main-left">
+                    <h1 class="cupbox-title">CUPBOX</h1>
+
+                    <h2 class="main-guide-title">이용 방법</h2>
+                    <div class="main-guide">
+                        <!-- 1단계: 시작하기 -->
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="100" height="100" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="10" fill="#1d4ed8" />
+                                    <path d="M10 8l6 4-6 4V8z" fill="#fff" />
+                                </svg>
+                            </div>
+                            <div class="guide-content">
+                                <div class="step-title">1. 시작하기</div>
+                                <div class="step-desc">아래 <b>시작하기</b> 버튼을 눌러주세요.</div>
+                            </div>
+                        </div>
+
+                        <!-- 2단계: 바코드 인식 -->
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="100" height="100" viewBox="0 0 90 90" fill="none">
+                                    <!-- 리더기 본체 -->
+                                    <rect
+                                        x="15"
+                                        y="30"
+                                        width="60"
+                                        height="35"
+                                        rx="3"
+                                        fill="#1e293b"
+                                        stroke="#f59e0b"
+                                        stroke-width="2.5"
+                                    />
+                                    <!-- 리더기 화면 -->
+                                    <rect x="20" y="35" width="50" height="25" rx="2" fill="#0ea5e9" opacity="0.3" />
+                                    <!-- 스캔 라인 -->
+                                    <line
+                                        x1="45"
+                                        y1="35"
+                                        x2="45"
+                                        y2="60"
+                                        stroke="#ef4444"
+                                        stroke-width="2"
+                                        opacity="0.8"
+                                    />
+                                    <line
+                                        x1="40"
+                                        y1="40"
+                                        x2="40"
+                                        y2="55"
+                                        stroke="#ef4444"
+                                        stroke-width="1.5"
+                                        opacity="0.5"
+                                    />
+                                    <line
+                                        x1="50"
+                                        y1="40"
+                                        x2="50"
+                                        y2="55"
+                                        stroke="#ef4444"
+                                        stroke-width="1.5"
+                                        opacity="0.5"
+                                    />
+
+                                    <!-- 스마트폰 -->
+                                    <rect
+                                        x="30"
+                                        y="12"
+                                        width="30"
+                                        height="50"
+                                        rx="4"
+                                        fill="#1d4ed8"
+                                        stroke="#2563eb"
+                                        stroke-width="2"
+                                    />
+                                    <rect x="33" y="16" width="24" height="38" rx="2" fill="#0ea5e9" />
+                                    <!-- 바코드 (세로줄) -->
+                                    <rect x="36" y="24" width="2" height="20" fill="#0b1220" />
+                                    <rect x="39" y="24" width="1.5" height="20" fill="#0b1220" />
+                                    <rect x="41.5" y="24" width="2.5" height="20" fill="#0b1220" />
+                                    <rect x="45" y="24" width="1" height="20" fill="#0b1220" />
+                                    <rect x="47" y="24" width="2" height="20" fill="#0b1220" />
+                                    <rect x="50" y="24" width="1.5" height="20" fill="#0b1220" />
+                                    <rect x="52.5" y="24" width="2" height="20" fill="#0b1220" />
+
+                                    <!-- 스캔 효과 -->
+                                    <path
+                                        d="M30 30 L60 30"
+                                        stroke="#10b981"
+                                        stroke-width="2"
+                                        stroke-dasharray="3,3"
+                                        opacity="0.6"
+                                    />
+                                    <circle cx="45" cy="30" r="3" fill="#10b981" opacity="0.4" />
+                                </svg>
+                            </div>
+                            <div class="guide-content">
+                                <div class="step-title">2. 회원 바코드 인식</div>
+                                <div class="step-desc"><b>스마트폰 화면</b>을 리더기에 인식시켜주세요.</div>
+                            </div>
+                        </div>
+
+                        <!-- 3단계: 컵 바코드 인식 -->
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="100" height="100" viewBox="0 0 90 90" fill="none">
+                                    <!-- 컵 -->
+                                    <polygon
+                                        points="32,25 58,25 60,60 30,60"
+                                        fill="#93c5fd"
+                                        stroke="#2563eb"
+                                        stroke-width="2"
+                                    />
+                                    <ellipse cx="45" cy="25" rx="13" ry="3" fill="#bfdbfe" opacity="0.5" />
+                                    <rect x="38" y="30" width="2" height="12" rx="1" fill="#60a5fa" opacity="0.3" />
+
+                                    <!-- 컵에 붙은 바코드 라벨 -->
+                                    <rect
+                                        x="35"
+                                        y="38"
+                                        width="20"
+                                        height="12"
+                                        rx="1"
+                                        fill="#f8fafc"
+                                        stroke="#cbd5e1"
+                                        stroke-width="1"
+                                    />
+                                    <!-- 바코드 줄무늬 -->
+                                    <rect x="37" y="40" width="1.5" height="8" fill="#0b1220" />
+                                    <rect x="39" y="40" width="1" height="8" fill="#0b1220" />
+                                    <rect x="41" y="40" width="2" height="8" fill="#0b1220" />
+                                    <rect x="44" y="40" width="1" height="8" fill="#0b1220" />
+                                    <rect x="46" y="40" width="1.5" height="8" fill="#0b1220" />
+                                    <rect x="48.5" y="40" width="1" height="8" fill="#0b1220" />
+                                    <rect x="50.5" y="40" width="2" height="8" fill="#0b1220" />
+
+                                    <!-- 리더기 (아래쪽) -->
+                                    <rect
+                                        x="20"
+                                        y="65"
+                                        width="50"
+                                        height="18"
+                                        rx="2"
+                                        fill="#1e293b"
+                                        stroke="#f59e0b"
+                                        stroke-width="2"
+                                    />
+                                    <rect x="23" y="68" width="44" height="12" rx="1" fill="#0ea5e9" opacity="0.3" />
+
+                                    <!-- 스캔 레이저 빔 -->
+                                    <line
+                                        x1="45"
+                                        y1="60"
+                                        x2="45"
+                                        y2="68"
+                                        stroke="#ef4444"
+                                        stroke-width="2"
+                                        opacity="0.8"
+                                    />
+                                    <line
+                                        x1="40"
+                                        y1="62"
+                                        x2="40"
+                                        y2="68"
+                                        stroke="#ef4444"
+                                        stroke-width="1.5"
+                                        opacity="0.5"
+                                    />
+                                    <line
+                                        x1="50"
+                                        y1="62"
+                                        x2="50"
+                                        y2="68"
+                                        stroke="#ef4444"
+                                        stroke-width="1.5"
+                                        opacity="0.5"
+                                    />
+
+                                    <!-- 스캔 효과 -->
+                                    <circle cx="45" cy="50" r="4" fill="#10b981" opacity="0.3" />
+                                    <circle cx="45" cy="50" r="2" fill="#10b981" opacity="0.6" />
+                                </svg>
+                            </div>
+                            <div class="guide-content">
+                                <div class="step-title">3. 컵 바코드 인식</div>
+                                <div class="step-desc"><b>컵에 부착된 바코드</b>를 리더기에 인식시켜주세요.</div>
+                            </div>
+                        </div>
+
+                        <!-- 4단계: 투입구 열림 -->
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="100" height="100" viewBox="0 0 90 90" fill="none">
+                                    <!-- 투입구 프레임 (고정) -->
+                                    <rect
+                                        x="25"
+                                        y="20"
+                                        width="40"
+                                        height="50"
+                                        rx="4"
+                                        fill="none"
+                                        stroke="#0ea5e9"
+                                        stroke-width="3"
+                                    />
+                                    <!-- 내부 어두운 공간 -->
+                                    <rect x="28" y="23" width="34" height="44" rx="2" fill="#060a15" />
+                                    <!-- 열린 문 (아래에 위치) -->
+                                    <rect
+                                        x="25"
+                                        y="58"
+                                        width="40"
+                                        height="8"
+                                        rx="2"
+                                        fill="#0ea5e9"
+                                        stroke="#0284c7"
+                                        stroke-width="2"
+                                    />
+                                    <!-- 문 손잡이 -->
+                                    <rect x="42" y="61" width="6" height="2" rx="1" fill="#0b1220" />
+                                    <!-- 화살표 (열림 표시) -->
+                                    <path d="M45 30 L45 40" stroke="#10b981" stroke-width="2" stroke-linecap="round" />
+                                    <path
+                                        d="M42 37 L45 40 L48 37"
+                                        stroke="#10b981"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        fill="none"
+                                    />
+                                </svg>
+                            </div>
+                            <div class="guide-content">
+                                <div class="step-title">4. 투입구 열림</div>
+                                <div class="step-desc">자동으로 <b>투입구가 열립니다</b>.</div>
+                            </div>
+                        </div>
+
+                        <!-- 5단계: 컵 투입 -->
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="100" height="100" viewBox="0 0 90 90" fill="none">
+                                    <!-- 투입구 프레임 (사각형) - 위에 위치 -->
+                                    <rect
+                                        x="25"
+                                        y="15"
+                                        width="40"
+                                        height="40"
+                                        rx="4"
+                                        fill="none"
+                                        stroke="#60a5fa"
+                                        stroke-width="3"
+                                    />
+                                    <!-- 투입구 내부 -->
+                                    <rect x="28" y="18" width="34" height="34" rx="2" fill="#0b1220" />
+
+                                    <!-- 컵 (사다리꼴 모양) - 투입구로 들어가는 위치 -->
+                                    <polygon
+                                        points="38,42 52,42 54,67 36,67"
+                                        fill="#60a5fa"
+                                        stroke="#1d4ed8"
+                                        stroke-width="2"
+                                    />
+                                    <!-- 컵 윗부분 (테두리) -->
+                                    <ellipse cx="45" cy="42" rx="7" ry="2" fill="#93c5fd" opacity="0.4" />
+                                    <!-- 컵 하이라이트 -->
+                                    <rect x="40" y="46" width="2" height="16" rx="1" fill="#93c5fd" opacity="0.3" />
+
+                                    <!-- 위로 향하는 화살표 (투입 방향 표시) -->
+                                    <path d="M45 70 L45 58" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" />
+                                    <path
+                                        d="M41 62 L45 58 L49 62"
+                                        stroke="#fff"
+                                        stroke-width="2.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        fill="none"
+                                    />
+
+                                    <!-- 모션 라인 (움직임 표시) -->
+                                    <path
+                                        d="M35 72 L35 75"
+                                        stroke="#10b981"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        opacity="0.6"
+                                    />
+                                    <path
+                                        d="M55 72 L55 75"
+                                        stroke="#10b981"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        opacity="0.6"
+                                    />
+                                </svg>
+                            </div>
+                            <div class="guide-content">
+                                <div class="step-title">5. 컵 투입</div>
+                                <div class="step-desc"><b>투명 페트컵</b>을 투입구에 넣어주세요.</div>
+                            </div>
+                        </div>
+
+                        <!-- 6단계: 처리 완료 -->
+                        <div class="guide-step">
+                            <div class="guide-img" aria-hidden="true">
+                                <svg width="100" height="100" viewBox="0 0 90 90" fill="none">
+                                    <circle cx="45" cy="45" r="18" fill="#10b981" stroke="#059669" stroke-width="3" />
+                                    <path
+                                        d="M32 45l8 8 16-16"
+                                        stroke="#fff"
+                                        stroke-width="4"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
+                            </div>
+                            <div class="guide-content">
+                                <div class="step-title">6. 처리 완료</div>
+                                <div class="step-desc">자동으로 <b>분류 및 수거</b>됩니다.</div>
+                            </div>
+                        </div>
+
+                        <!-- 상태 표시 -->
+                        <div class="status-section">
+                            <div class="status-card">
+                                <h2 class="status-title">가동 상태</h2>
+                                <div id="operationStatus" class="status-value status-green">정상</div>
+                            </div>
+                            <div class="status-card">
+                                <h2 class="status-title">투명 페트컵 투입</h2>
+                                <div id="inputStatus" class="status-value status-green">가능 (0%)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 시작하기 버튼 -->
+                    <button id="startButton" class="main-start-btn" onclick="startProcess()">시작하기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 프로세스 화면 -->
+        <div class="process-screen" id="processScreen">
+            <div class="process-header">
+                <h2>CUPBOX</h2>
+            </div>
+
+            <div class="process-content">
+                <div class="process-icon" id="processIcon">⏳</div>
+                <div class="process-title" id="processTitle">처리 중...</div>
+                <div class="process-description" id="processDescription">잠시만 기다려주세요</div>
+                <div class="process-progress" id="processProgress">1 / 10</div>
+
+                <button class="btn-confirm" id="confirmButton" onclick="confirmInsertion()" style="display: none">
+                    투입 완료
+                </button>
+            </div>
+        </div>
+
+        <!-- 긴급정지 버튼 -->
+        <button class="btn-emergency" id="emergencyBtn" onclick="emergencyStop()" style="display: none">
+            ⚠️ 긴급 정지
+        </button>
+
+        <!-- 관리자 패널 -->
+        <div class="admin-panel">
+            <button onclick="toggleLog()">로그</button>
+            <button onclick="connectDistanceSensor()">센서 연결</button>
+        </div>
+
+        <!-- 로그 팝업 -->
+        <div class="log-popup" id="logPopup">
+            <div class="log-popup-header">
+                <h4>시스템 로그</h4>
+                <button onclick="toggleLog()">닫기</button>
+            </div>
+            <textarea id="log" readonly></textarea>
+        </div>
+
+        <script src="src/index.js"></script>
+
+        <!-- 시계 업데이트 -->
+        <script>
+            function updateAdminTime() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('ko-KR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                });
+                const adminTime = document.getElementById('admin-time');
+                if (adminTime) {
+                    adminTime.textContent = timeStr;
+                }
+            }
+            setInterval(updateAdminTime, 1000);
+            updateAdminTime();
+        </script>
+
+        <!-- 보안 스크립트 -->
+        <script>
+            // Ctrl+S 방지
+            document.addEventListener('keydown', function (e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    alert('무단 저장은 금지되어 있습니다.');
+                }
+            });
+
+            // F12 방지 (선택사항 - 주석 처리됨)
+            // document.addEventListener('keydown', function (e) {
+            //     if (e.key === 'F12') {
+            //         e.preventDefault();
+            //         alert('개발자 도구 사용이 제한되어 있습니다.');
+            //     }
+            // });
+        </script>
+    </body>
+</html>
