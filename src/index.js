@@ -773,7 +773,10 @@ function updateDateTime() {
         weekday: 'long',
     });
     const timeStr = now.toLocaleTimeString('ko-KR');
-    document.getElementById('datetime').textContent = `${dateStr} ${timeStr}`;
+    const datetimeElement = document.getElementById('datetime') || document.getElementById('admin-time');
+    if (datetimeElement) {
+        datetimeElement.textContent = `${dateStr} ${timeStr}`;
+    }
 }
 
 setInterval(updateDateTime, 1000);
@@ -838,16 +841,20 @@ async function initializeSystem() {
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const systemBox = document.getElementById('systemBox');
-    const systemStatusText = document.getElementById('systemStatusText');
-    systemStatusText.textContent = '초기화 중...';
-    systemBox.classList.add('disabled');
+    const systemStatusText = document.getElementById('systemStatusText') || document.getElementById('operationStatus');
+    if (systemStatusText) {
+        systemStatusText.textContent = '초기화 중...';
+    }
+    if (systemBox) {
+        systemBox.classList.add('disabled');
+    }
 
     // 1. 거리 센서 연결 (먼저 연결)
     log('📏 [1/3] 거리 센서 연결 중...');
     const sensorConnected = await connectDistanceSensor();
     if (!sensorConnected) {
         log('❌ 거리 센서 연결 실패');
-        systemStatusText.textContent = '연결 실패';
+        if (systemStatusText) systemStatusText.textContent = '연결 실패';
         return;
     }
 
@@ -858,7 +865,7 @@ async function initializeSystem() {
     const mainConnected = await connectMainController();
     if (!mainConnected) {
         log('❌ 메인 컨트롤러 연결 실패');
-        systemStatusText.textContent = '연결 실패';
+        if (systemStatusText) systemStatusText.textContent = '연결 실패';
         return;
     }
 
@@ -869,7 +876,7 @@ async function initializeSystem() {
     const servoConnected = await connectServoController();
     if (!servoConnected) {
         log('❌ 서보 컨트롤러 연결 실패');
-        systemStatusText.textContent = '연결 실패';
+        if (systemStatusText) systemStatusText.textContent = '연결 실패';
         return;
     }
 
@@ -885,9 +892,10 @@ async function initializeSystem() {
     log('✅ 시스템 초기화 완료');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    systemStatusText.textContent = '준비 완료';
-    systemBox.classList.remove('disabled');
-    document.getElementById('startButton').disabled = false;
+    if (systemStatusText) systemStatusText.textContent = '준비 완료';
+    if (systemBox) systemBox.classList.remove('disabled');
+    const startButton = document.getElementById('startButton');
+    if (startButton) startButton.disabled = false;
 
     return true;
 }
