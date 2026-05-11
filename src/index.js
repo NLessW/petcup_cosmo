@@ -145,6 +145,7 @@ const ADDR_TORQUE_ENABLE = 64;
 const ADDR_GOAL_POSITION = 116;
 
 // 명령어
+const INST_PING = 0x01;
 const INST_WRITE = 0x03;
 
 // CRC 계산 함수
@@ -213,6 +214,10 @@ function buildTorquePacket(id, enable) {
     ]);
 }
 
+function buildPingPacket(id) {
+    return makeDynamixelPacket(id, INST_PING, []);
+}
+
 // 위치 이동
 function buildPositionPacket(id, position) {
     return makeDynamixelPacket(id, INST_WRITE, [
@@ -243,7 +248,7 @@ function savePortConfig(role, port) {
     config[role] = {
         usbVendorId: info.usbVendorId || null,
         usbProductId: info.usbProductId || null,
-        serialNumber: info.serialNumber || null,
+        protocol: role === 'main' ? 'modbus-rtu' : 'dynamixel',
         savedAt: Date.now(),
     };
     localStorage.setItem(PORT_STORAGE_KEY, JSON.stringify(config));
@@ -254,34 +259,135 @@ function hasStoredPortConfig(role) {
     return Boolean(config[role]);
 }
 
-function findSavedPort(savedPorts, role) {
-    const config = getStoredPortConfig()[role];
-    if (!config || !config.usbVendorId) return null;
-
-    for (const port of savedPorts) {
-        const info = port.getInfo ? port.getInfo() : {};
-        const vendorMatch = info.usbVendorId === config.usbVendorId;
-        const productMatch = !config.usbProductId || info.usbProductId === config.usbProductId;
-        const serialMatch = !config.serialNumber || info.serialNumber === config.serialNumber;
-
-        if (vendorMatch && productMatch && serialMatch) {
-            return port;
-        }
-    }
-    return null;
-}
-
 function getPortInfoText(port) {
     const info = port.getInfo ? port.getInfo() : {};
     const vendor = info.usbVendorId ? `0x${info.usbVendorId.toString(16).padStart(4, '0')}` : 'unknown';
     const product = info.usbProductId ? `0x${info.usbProductId.toString(16).padStart(4, '0')}` : 'unknown';
-    const serial = info.serialNumber ? ` / SN:${info.serialNumber}` : '';
-    return `${vendor}/${product}${serial}`;
+    return `${vendor}/${product}`;
 }
 
 function getUnusedSavedPort(savedPorts, usedPorts, preferredIndex) {
     const candidates = savedPorts.filter((port) => !usedPorts.includes(port));
     return candidates[preferredIndex] || candidates[0] || null;
+}
+
+function concatUint8Arrays(first, second) {
+    const combined = new Uint8Array(first.length + second.length);
+    combined.set(first);
+    combined.set(second, first.length);
+    return combined;
+}
+
+function hasValidModbusResponse(buffer) {
+    for (let offset = 0; offset <= buffer.length - 7; offset++) {
+        if (buffer[offset] !== MODBUS_SLAVE_ID || buffer[offset + 1] !== ModbusFunc.READ_HOLDING_REGISTERS) continue;
+
+        const byteCount = buffer[offset + 2];
+        const frameLength = 3 + byteCount + 2;
+        if (byteCount < 2 || buffer.length - offset < frameLength) continue;
+
+        const frame = buffer.slice(offset, offset + frameLength);
+        const receivedCRC = frame[frame.length - 2] | (frame[frame.length - 1] << 8);
+        const calculatedCRC = calculateModbusCRC(frame.slice(0, frame.length - 2));
+        if (receivedCRC === calculatedCRC) return true;
+    }
+
+    return false;
+}
+
+function hasDynamixelStatusPacket(buffer) {
+    for (let offset = 0; offset <= buffer.length - 11; offset++) {
+        const hasHeader =
+            buffer[offset] === 0xff &&
+            buffer[offset + 1] === 0xff &&
+            buffer[offset + 2] === 0xfd &&
+            buffer[offset + 3] === 0x00;
+        if (!hasHeader) continue;
+
+        const id = buffer[offset + 4];
+        const instruction = buffer[offset + 7];
+        if ((id === 1 || id === 2) && instruction === 0x55) return true;
+    }
+
+    return false;
+}
+
+async function readProbeResponse(reader, validator, timeoutMs) {
+    let buffer = new Uint8Array(0);
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+        const remaining = timeoutMs - (Date.now() - startedAt);
+        const result = await Promise.race([reader.read(), delay(Math.max(remaining, 1)).then(() => null)]);
+        if (!result || result.done) break;
+
+        if (result.value) {
+            buffer = concatUint8Arrays(buffer, result.value);
+            if (validator(buffer)) return true;
+        }
+    }
+
+    return false;
+}
+
+async function probePort(port, baudRate, packets, validator) {
+    let reader = null;
+    let writer = null;
+
+    try {
+        await port.open({ baudRate });
+        reader = port.readable.getReader();
+        writer = port.writable.getWriter();
+
+        for (const packet of packets) {
+            await writer.write(packet);
+            await delay(40);
+        }
+
+        return await readProbeResponse(reader, validator, 450);
+    } catch (error) {
+        return false;
+    } finally {
+        if (reader) {
+            try {
+                await reader.cancel();
+            } catch (error) {}
+            try {
+                reader.releaseLock();
+            } catch (error) {}
+        }
+
+        if (writer) {
+            try {
+                writer.releaseLock();
+            } catch (error) {}
+        }
+
+        try {
+            await port.close();
+        } catch (error) {}
+    }
+}
+
+async function isMainControllerPort(port) {
+    return await probePort(port, 9600, [buildReadRegistersPacket(ModbusReg.DOOR_STATUS, 1)], hasValidModbusResponse);
+}
+
+async function isServoControllerPort(port) {
+    return await probePort(port, 57600, [buildPingPacket(1), buildPingPacket(2)], hasDynamixelStatusPacket);
+}
+
+async function findPortByProtocol(role, usedPorts) {
+    const savedPorts = await navigator.serial.getPorts();
+    const candidates = savedPorts.filter((port) => !usedPorts.includes(port));
+    const probe = role === 'main' ? isMainControllerPort : isServoControllerPort;
+
+    for (const port of candidates) {
+        log(`[${role === 'main' ? '메인' : '서보'}] 저장된 포트 확인 중 (${getPortInfoText(port)})`);
+        if (await probe(port)) return port;
+    }
+
+    return null;
 }
 
 async function connectMainController(useSavedPort = true) {
@@ -290,12 +396,11 @@ async function connectMainController(useSavedPort = true) {
         let targetPort = null;
 
         if (useSavedPort && hasStoredPortConfig('main')) {
-            const savedPorts = await navigator.serial.getPorts();
-            targetPort = findSavedPort(savedPorts, 'main');
+            targetPort = await findPortByProtocol('main', alreadyUsedPorts);
             if (targetPort) {
                 log(`[메인] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
             } else {
-                log('[메인] 저장된 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+                log('[메인] Modbus 응답 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
             }
         }
 
@@ -304,6 +409,11 @@ async function connectMainController(useSavedPort = true) {
             targetPort = await navigator.serial.requestPort({
                 filters: USB_SERIAL_FILTERS,
             });
+
+            if (!(await isMainControllerPort(targetPort))) {
+                log('[메인] 선택한 포트에서 Modbus 응답을 확인하지 못했습니다.');
+                return false;
+            }
         }
 
         // 이미 사용 중인 포트인지 확인
@@ -367,12 +477,11 @@ async function connectServoController(useSavedPort = true) {
         let targetPort = null;
 
         if (useSavedPort && hasStoredPortConfig('servo')) {
-            const savedPorts = await navigator.serial.getPorts();
-            targetPort = findSavedPort(savedPorts, 'servo');
+            targetPort = await findPortByProtocol('servo', alreadyUsedPorts);
             if (targetPort) {
                 log(`[서보] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
             } else {
-                log('[서보] 저장된 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+                log('[서보] Dynamixel 응답 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
             }
         }
 
@@ -381,6 +490,11 @@ async function connectServoController(useSavedPort = true) {
             targetPort = await navigator.serial.requestPort({
                 filters: USB_SERIAL_FILTERS,
             });
+
+            if (!(await isServoControllerPort(targetPort))) {
+                log('[서보] 선택한 포트에서 Dynamixel 응답을 확인하지 못했습니다.');
+                return false;
+            }
         }
 
         // 이미 사용 중인 포트인지 확인
