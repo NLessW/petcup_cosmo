@@ -20,9 +20,13 @@ let processStep = 0;
 let waitingForConfirmation = false;
 let totalSteps = 6;
 let currentCupType = 'PET';
+let completionTimer = null;
+let completionCountdown = 10;
 
 // Modbus RTU 설정
 const MODBUS_SLAVE_ID = 1;
+const PORT_STORAGE_KEY = 'cupbox.serialPorts.v1';
+const USB_SERIAL_FILTERS = [{ usbVendorId: 0x0403, usbProductId: 0x6001 }];
 
 // ========================================
 // Modbus RTU Register Map
@@ -225,16 +229,63 @@ function buildPositionPacket(id, position) {
 // 포트 연결 함수
 // ========================================
 
-async function connectMainController() {
+function getStoredPortConfig() {
     try {
-        log('[메인] Modbus RTU 컨트롤러 포트를 선택해주세요...');
+        return JSON.parse(localStorage.getItem(PORT_STORAGE_KEY) || '{}');
+    } catch (error) {
+        return {};
+    }
+}
 
-        // 이미 사용 중인 포트 목록
+function savePortConfig(role, port) {
+    const config = getStoredPortConfig();
+    const info = port.getInfo ? port.getInfo() : {};
+    config[role] = {
+        usbVendorId: info.usbVendorId || null,
+        usbProductId: info.usbProductId || null,
+        savedAt: Date.now(),
+    };
+    localStorage.setItem(PORT_STORAGE_KEY, JSON.stringify(config));
+}
+
+function hasStoredPortConfig(role) {
+    const config = getStoredPortConfig();
+    return Boolean(config[role]);
+}
+
+function getPortInfoText(port) {
+    const info = port.getInfo ? port.getInfo() : {};
+    const vendor = info.usbVendorId ? `0x${info.usbVendorId.toString(16).padStart(4, '0')}` : 'unknown';
+    const product = info.usbProductId ? `0x${info.usbProductId.toString(16).padStart(4, '0')}` : 'unknown';
+    return `${vendor}/${product}`;
+}
+
+function getUnusedSavedPort(savedPorts, usedPorts, preferredIndex) {
+    const candidates = savedPorts.filter((port) => !usedPorts.includes(port));
+    return candidates[preferredIndex] || candidates[0] || null;
+}
+
+async function connectMainController(useSavedPort = true) {
+    try {
         const alreadyUsedPorts = [servoPort].filter((p) => p !== null);
+        let targetPort = null;
 
-        const targetPort = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x0403, usbProductId: 0x6001 }],
-        });
+        if (useSavedPort && hasStoredPortConfig('main')) {
+            const savedPorts = await navigator.serial.getPorts();
+            targetPort = getUnusedSavedPort(savedPorts, alreadyUsedPorts, 0);
+            if (targetPort) {
+                log(`[메인] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
+            } else {
+                log('[메인] 저장된 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+            }
+        }
+
+        if (!targetPort) {
+            log('[메인] Modbus RTU 컨트롤러 포트를 선택해주세요...');
+            targetPort = await navigator.serial.requestPort({
+                filters: USB_SERIAL_FILTERS,
+            });
+        }
 
         // 이미 사용 중인 포트인지 확인
         if (alreadyUsedPorts.includes(targetPort)) {
@@ -242,8 +293,9 @@ async function connectMainController() {
             return false;
         }
 
+        await targetPort.open({ baudRate: 9600 });
         mainPort = targetPort;
-        await mainPort.open({ baudRate: 9600 });
+        savePortConfig('main', targetPort);
 
         mainReader = mainPort.readable.getReader();
         mainWriter = mainPort.writable.getWriter();
@@ -255,6 +307,9 @@ async function connectMainController() {
         return true;
     } catch (error) {
         log('[메인] 연결 실패: ' + error.message);
+        mainPort = null;
+        mainReader = null;
+        mainWriter = null;
         return false;
     }
 }
@@ -287,16 +342,27 @@ async function readMainData() {
     }
 }
 
-async function connectServoController() {
+async function connectServoController(useSavedPort = true) {
     try {
-        log('[서보] Dynamixel 컨트롤러 포트를 선택해주세요...');
-
-        // 이미 사용 중인 포트 목록
         const alreadyUsedPorts = [mainPort].filter((p) => p !== null);
+        let targetPort = null;
 
-        const targetPort = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x0403, usbProductId: 0x6001 }],
-        });
+        if (useSavedPort && hasStoredPortConfig('servo')) {
+            const savedPorts = await navigator.serial.getPorts();
+            targetPort = getUnusedSavedPort(savedPorts, alreadyUsedPorts, 0);
+            if (targetPort) {
+                log(`[서보] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
+            } else {
+                log('[서보] 저장된 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+            }
+        }
+
+        if (!targetPort) {
+            log('[서보] Dynamixel 컨트롤러 포트를 선택해주세요...');
+            targetPort = await navigator.serial.requestPort({
+                filters: USB_SERIAL_FILTERS,
+            });
+        }
 
         // 이미 사용 중인 포트인지 확인
         if (alreadyUsedPorts.includes(targetPort)) {
@@ -304,8 +370,9 @@ async function connectServoController() {
             return false;
         }
 
+        await targetPort.open({ baudRate: 57600 });
         servoPort = targetPort;
-        await servoPort.open({ baudRate: 57600 });
+        savePortConfig('servo', targetPort);
 
         servoReader = servoPort.readable.getReader();
         servoWriter = servoPort.writable.getWriter();
@@ -316,6 +383,9 @@ async function connectServoController() {
         return true;
     } catch (error) {
         log('[서보] 연결 실패: ' + error.message);
+        servoPort = null;
+        servoReader = null;
+        servoWriter = null;
         return false;
     }
 }
@@ -542,6 +612,49 @@ function hideConfirmButton() {
     document.getElementById('confirmButton').style.display = 'none';
 }
 
+function showCompletionActions() {
+    const actions = document.getElementById('completionActions');
+    if (actions) actions.classList.add('active');
+}
+
+function hideCompletionActions() {
+    const actions = document.getElementById('completionActions');
+    if (actions) actions.classList.remove('active');
+}
+
+function clearCompletionTimer() {
+    if (completionTimer) {
+        clearInterval(completionTimer);
+        completionTimer = null;
+    }
+}
+
+function startCompletionWait() {
+    clearCompletionTimer();
+    completionCountdown = 10;
+    showCompletionActions();
+    updateProcessStep(totalSteps, '✅', '완료!', `추가 투입하거나 처음으로 돌아갈 수 있습니다. ${completionCountdown}초 후 메인 화면으로 이동합니다.`);
+
+    completionTimer = setInterval(() => {
+        completionCountdown -= 1;
+        if (completionCountdown <= 0) {
+            returnToMainScreen();
+            return;
+        }
+
+        updateProcessStep(totalSteps, '✅', '완료!', `추가 투입하거나 처음으로 돌아갈 수 있습니다. ${completionCountdown}초 후 메인 화면으로 이동합니다.`);
+    }, 1000);
+}
+
+function enableStartButton() {
+    const startButton = document.getElementById('startButton');
+    if (startButton) {
+        startButton.disabled = false;
+        startButton.style.opacity = '1';
+        startButton.style.cursor = 'pointer';
+    }
+}
+
 function toggleLog() {
     const logPopup = document.getElementById('logPopup');
     logPopup.classList.toggle('active');
@@ -584,7 +697,11 @@ async function initializeSystem() {
 
     // 1. 메인 컨트롤러 연결
     log('📦 [1/2] 메인 컨트롤러 연결 중...');
-    const mainConnected = await connectMainController();
+    let mainConnected = await connectMainController(true);
+    if (!mainConnected && hasStoredPortConfig('main')) {
+        log('[메인] 자동 연결 실패. 수동 선택으로 전환합니다.');
+        mainConnected = await connectMainController(false);
+    }
     if (!mainConnected) {
         log('❌ 메인 컨트롤러 연결 실패');
         if (systemStatusText) systemStatusText.textContent = '연결 실패';
@@ -595,7 +712,11 @@ async function initializeSystem() {
 
     // 2. 서보 컨트롤러 연결
     log('🤖 [2/2] 서보 컨트롤러 연결 중...');
-    const servoConnected = await connectServoController();
+    let servoConnected = await connectServoController(true);
+    if (!servoConnected && hasStoredPortConfig('servo')) {
+        log('[서보] 자동 연결 실패. 수동 선택으로 전환합니다.');
+        servoConnected = await connectServoController(false);
+    }
     if (!servoConnected) {
         log('❌ 서보 컨트롤러 연결 실패');
         if (systemStatusText) systemStatusText.textContent = '연결 실패';
@@ -631,6 +752,10 @@ async function startProcess() {
         log('⚠️ 프로세스가 이미 실행 중입니다.');
         return;
     }
+
+    clearCompletionTimer();
+    hideCompletionActions();
+    hideConfirmButton();
 
     // 시스템 연결 상태 확인 및 자동 연결
     if (!mainWriter || !servoWriter) {
@@ -725,16 +850,9 @@ async function confirmInsertion() {
         log('✅ 프로세스 완료!');
         log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        await delay(3000);
         isProcessing = false;
-        hideProcessScreen();
-
-        const startButton = document.getElementById('startButton');
-        if (startButton) {
-            startButton.disabled = false;
-            startButton.style.opacity = '1';
-            startButton.style.cursor = 'pointer';
-        }
+        enableStartButton();
+        startCompletionWait();
     } catch (error) {
         log('❌ 프로세스 실행 중 오류: ' + error.message);
         stopProcess();
@@ -746,16 +864,13 @@ async function stopProcess() {
     isProcessing = false;
     waitingForConfirmation = false;
     processStep = 0;
+    clearCompletionTimer();
 
     hideProcessScreen();
     hideConfirmButton();
+    hideCompletionActions();
 
-    const startButton = document.getElementById('startButton');
-    if (startButton) {
-        startButton.disabled = false;
-        startButton.style.opacity = '1';
-        startButton.style.cursor = 'pointer';
-    }
+    enableStartButton();
 
     // 모든 모터 및 장치 정지
     if (mainWriter) {
@@ -769,6 +884,28 @@ async function stopProcess() {
     }
 }
 
+function returnToMainScreen() {
+    clearCompletionTimer();
+    hideCompletionActions();
+    hideConfirmButton();
+    waitingForConfirmation = false;
+    isProcessing = false;
+    processStep = 0;
+    hideProcessScreen();
+    enableStartButton();
+    log('[완료] 메인 화면으로 이동');
+}
+
+async function restartInsertion() {
+    clearCompletionTimer();
+    hideCompletionActions();
+    waitingForConfirmation = false;
+    isProcessing = false;
+    processStep = 0;
+    log('[완료] 추가 투입 시작');
+    await startProcess();
+}
+
 async function emergencyStop() {
     if (!confirm('긴급 정지하시겠습니까?')) {
         return;
@@ -778,16 +915,13 @@ async function emergencyStop() {
     isProcessing = false;
     waitingForConfirmation = false;
     processStep = 0;
+    clearCompletionTimer();
 
     hideProcessScreen();
     hideConfirmButton();
+    hideCompletionActions();
 
-    const startButton = document.getElementById('startButton');
-    if (startButton) {
-        startButton.disabled = false;
-        startButton.style.opacity = '1';
-        startButton.style.cursor = 'pointer';
-    }
+    enableStartButton();
 
     // 긴급 정지: 모든 모터 및 장치 정지
     if (mainWriter) {

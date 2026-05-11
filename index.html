@@ -348,6 +348,44 @@
                 box-shadow: 0 15px 40px rgba(16, 185, 129, 0.7);
             }
 
+            .completion-actions {
+                display: none;
+                gap: 24px;
+                justify-content: center;
+                align-items: center;
+                margin-top: 50px;
+            }
+
+            .completion-actions.active {
+                display: flex;
+            }
+
+            .btn-completion {
+                min-width: 260px;
+                padding: 32px 52px;
+                border: none;
+                border-radius: 16px;
+                cursor: pointer;
+                font-size: 2em;
+                font-weight: 800;
+                color: white;
+                transition: all 0.3s ease;
+            }
+
+            .btn-completion.primary {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                box-shadow: 0 10px 30px rgba(16, 185, 129, 0.45);
+            }
+
+            .btn-completion.secondary {
+                background: linear-gradient(135deg, #3772ff 0%, #1d4ed8 100%);
+                box-shadow: 0 10px 30px rgba(55, 114, 255, 0.45);
+            }
+
+            .btn-completion:hover {
+                transform: translateY(-5px);
+            }
+
             /* 긴급정지 버튼 */
             .btn-emergency {
                 position: fixed;
@@ -887,11 +925,16 @@
                 <div class="process-icon" id="processIcon">⏳</div>
                 <div class="process-title" id="processTitle">처리 중...</div>
                 <div class="process-description" id="processDescription">잠시만 기다려주세요</div>
-                <div class="process-progress" id="processProgress">1 / 10</div>
+                <div class="process-progress" id="processProgress">1 / 6</div>
 
                 <button class="btn-confirm" id="confirmButton" onclick="confirmInsertion()" style="display: none">
                     투입 완료
                 </button>
+
+                <div class="completion-actions" id="completionActions">
+                    <button class="btn-completion primary" onclick="restartInsertion()">추가 투입</button>
+                    <button class="btn-completion secondary" onclick="returnToMainScreen()">처음으로</button>
+                </div>
             </div>
         </div>
 
@@ -916,24 +959,6 @@
         </div>
 
         <script src="src/index.js"></script>
-
-        <!-- 시계 업데이트 -->
-        <script>
-            function updateAdminTime() {
-                const now = new Date();
-                const timeStr = now.toLocaleTimeString('ko-KR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                });
-                const adminTime = document.getElementById('admin-time');
-                if (adminTime) {
-                    adminTime.textContent = timeStr;
-                }
-            }
-            setInterval(updateAdminTime, 1000);
-            updateAdminTime();
-        </script>
 
         <!-- 보안 스크립트 -->
         <script>

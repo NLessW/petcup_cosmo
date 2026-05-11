@@ -72,14 +72,14 @@
     // SENSORS
     constexpr int SENSOR_DOOR_OPEN = 36;
     constexpr int SENSOR_DOOR_CLOSE = 37;
-    constexpr int CLASSIFY_SENSOR = 29;
+    constexpr int CLASSIFY_SENSOR = 32;
 
     // Water pump
     constexpr int WATER_PUMP = 45;
 
     // press
-    constexpr int CUP_PRESS_SENSOR = 30;  
-    constexpr int CUP_PRESS_MOTOR = 45; 
+    constexpr int CUP_PRESS_SENSOR = 31;  
+    constexpr int CUP_PRESS_MOTOR = 42; 
  }
 
  namespace EEPROM_Addr {
@@ -162,7 +162,7 @@ private:
     SensorPhase phase;
 
     bool isSensorTouched() {
-        return digitalRead(sensorPin) == HIGH;
+        return digitalRead(sensorPin) == LOW;
     }
 
     void startMove(ClassifyState nextState) {
@@ -380,14 +380,14 @@ public:
             state = IGNORING_SENSOR;
             moveStartTime = millis();
             if (motorPin != 99) digitalWrite(motorPin, HIGH); // 모터 구동
-            debugLog("☕ Cup Press: START (Ignoring sensor)");
+            debugLog("Cup Press: START (Ignoring sensor)");
         }
     }
     
     void stop() {
         state = IDLE;
         if (motorPin != 99) digitalWrite(motorPin, LOW);
-        debugLog("☕ Cup Press: STOP (Forced)");
+        debugLog("Cup Press: STOP (Forced)");
     }
     
     void update() {
@@ -400,19 +400,18 @@ public:
                 // 지정된 시간 동안 센서를 무시하여 초기 위치를 벗어나게 함
                 if (currentTime - moveStartTime >= IGNORE_TIME) {
                     state = MOVING_TO_SENSOR;
-                    debugLog("☕ Cup Press: Waiting for sensor");
+                    debugLog("Cup Press: Waiting for sensor");
                 }
-                // (선택) 만약 센서가 떨어지는 것을 바로 감지하려면 아래 로직 사용
-                // if (digitalRead(sensorPin) == LOW) { state = MOVING_TO_SENSOR; debugLog("☕ Cup Press: Waiting for sensor"); }
+                // 만약 센서가 떨어지는 것을 바로 감지하려면 아래 로직 사용
+                // if (digitalRead(sensorPin) == LOW) { state = MOVING_TO_SENSOR; debugLog("Cup Press: Waiting for sensor"); }
                 break;
                 
             case MOVING_TO_SENSOR:
                 // 한 바퀴 돌아 다시 센서에 닿으면 정지 (센서 HIGH 기준)
-                // 만약 센서 동작 방식이 반대(눌렸을 때 LOW)라면 == LOW 로 수정하세요.
-                if (digitalRead(sensorPin) == HIGH) {
+                if (digitalRead(sensorPin) == LOW) {
                     digitalWrite(motorPin, LOW); // 모터 정지
                     state = IDLE;
-                    debugLog("☕ Cup Press: STOP (Sensor detected)");
+                    debugLog("Cup Press: STOP (Sensor detected)");
                     
                     // Modbus 상태도 0으로 복귀
                     modbusRegisters[ModbusReg::CUP_PRESS_CTRL] = 0;
