@@ -14,21 +14,12 @@ let servoPort = null;
 let servoReader = null;
 let servoWriter = null;
 
-// SEN0591 거리 센서 포트
-let sensorPort = null;
-let sensorReader = null;
-let sensorWriter = null;
-let sensorPolling = false;
-
 // 시스템 상태
 let isProcessing = false;
 let processStep = 0;
 let waitingForConfirmation = false;
-let totalSteps = 10;
-
-// 수거 상태 변수
-let currentCollectionPercent = 0;
-const MAX_DISTANCE_MM = 575; // 575mm를 기준으로 설정
+let totalSteps = 6;
+let currentCupType = 'PET';
 
 // Modbus RTU 설정
 const MODBUS_SLAVE_ID = 1;
@@ -39,17 +30,14 @@ const MODBUS_SLAVE_ID = 1;
 const ModbusReg = {
     DOOR_CMD: 0x0000,
     DOOR_STATUS: 0x0001,
-    UV_CTRL: 0x0002,
-    PUMP_CTRL: 0x0003,
-    FAN1_CTRL: 0x0004,
-    FAN2_CTRL: 0x0005,
-    INVERTER_CTRL: 0x0006,
-    FWD_SIGNAL: 0x0007,
-    REV_SIGNAL: 0x0008,
-    DOOR_SPEED_OPEN: 0x0009,
-    DOOR_SPEED_CLOSE: 0x000a,
-    SENSOR_OPEN: 0x000b,
-    SENSOR_CLOSE: 0x000c,
+    PUMP_CTRL: 0x0002,
+    DOOR_SPEED_OPEN: 0x0003,
+    DOOR_SPEED_CLOSE: 0x0004,
+    SENSOR_OPEN: 0x0005,
+    SENSOR_CLOSE: 0x0006,
+    CUP_PRESS_CTRL: 0x0007,
+    CLASSIFY_CTRL: 0x0008,
+    CLASSIFY_STATUS: 0x0009,
 };
 
 const ModbusFunc = {
@@ -78,271 +66,6 @@ function calculateModbusCRC(data) {
     }
 
     return crc;
-}
-
-// ========================================
-// SEN0591 거리 센서 함수
-// ========================================
-
-// SEN0591 센서 연결 (VID_0403+PID_6001+5&2B9650CC&0&8\0000)
-async function connectDistanceSensor() {
-    try {
-        log('[센서] 거리 센서 포트를 선택해주세요...');
-
-        // 이미 사용 중인 포트 제외
-        const alreadyUsedPorts = [mainPort, servoPort].filter((p) => p !== null);
-
-        const targetPort = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x0403, usbProductId: 0x6001 }],
-        });
-
-        // 이미 사용 중인 포트인지 확인
-        if (alreadyUsedPorts.includes(targetPort)) {
-            log('[센서] 이미 사용 중인 포트입니다. 다른 포트를 선택해주세요.');
-            return false;
-        }
-
-        sensorPort = targetPort;
-        const baudRate = 115200;
-        await sensorPort.open({
-            baudRate: baudRate,
-            dataBits: 8,
-            stopBits: 1,
-            parity: 'none',
-            flowControl: 'none',
-        });
-
-        sensorReader = sensorPort.readable.getReader();
-        sensorWriter = sensorPort.writable.getWriter();
-
-        log(`[센서] SEN0591 센서 연결 성공 (${baudRate} baud)`);
-
-        // 데이터 수신 시작
-        readSensorData();
-
-        // 폴링 시작
-        startSensorPolling();
-
-        return true;
-    } catch (error) {
-        log(`[센서] 연결 실패: ${error.message}`);
-        return false;
-    }
-}
-
-// 센서에 거리 요청 명령 전송
-async function sendSensorDistanceCommand() {
-    if (!sensorWriter) return;
-
-    try {
-        // 명령: 0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0xd4, 0x36
-        const command = new Uint8Array([0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0xd4, 0x36]);
-        await sensorWriter.write(command);
-    } catch (error) {
-        log(`[센서] 명령 전송 오류: ${error.message}`);
-    }
-}
-
-// 주기적으로 센서에 명령 전송 (200ms 간격)
-async function startSensorPolling() {
-    sensorPolling = true;
-
-    while (sensorPolling && sensorPort) {
-        await sendSensorDistanceCommand();
-        await delay(200);
-    }
-}
-
-// 센서 데이터 읽기
-async function readSensorData() {
-    let buffer = new Uint8Array(0);
-
-    try {
-        while (sensorPort) {
-            const { value, done } = await sensorReader.read();
-            if (done) break;
-
-            if (value) {
-                // 버퍼에 추가
-                const newBuffer = new Uint8Array(buffer.length + value.length);
-                newBuffer.set(buffer);
-                newBuffer.set(value, buffer.length);
-                buffer = newBuffer;
-
-                // Modbus 응답 파싱
-                buffer = parseSensorModbusResponse(buffer);
-            }
-        }
-    } catch (error) {
-        if (sensorPolling) {
-            log(`[센서] 읽기 오류: ${error.message}`);
-        }
-    }
-}
-
-// Modbus 응답 파싱 및 % 계산
-function parseSensorModbusResponse(buffer) {
-    // Modbus 응답 형식: 0x01 0x03 0x02 [DATA_H] [DATA_L] [CRC_L] [CRC_H]
-    // 최소 7바이트 필요
-    while (buffer.length >= 7) {
-        // 헤더 찾기: 0x01 0x03
-        let headerIndex = -1;
-        for (let i = 0; i < buffer.length - 1; i++) {
-            if (buffer[i] === 0x01 && buffer[i + 1] === 0x03) {
-                headerIndex = i;
-                break;
-            }
-        }
-
-        if (headerIndex === -1) {
-            // 헤더 없음 - 버퍼 비우기
-            return new Uint8Array();
-        }
-
-        // 헤더 이전 데이터 제거
-        if (headerIndex > 0) {
-            buffer = buffer.slice(headerIndex);
-        }
-
-        // 충분한 데이터가 있는지 확인
-        if (buffer.length < 7) {
-            break;
-        }
-
-        // 데이터 길이 확인
-        if (buffer[2] === 0x02) {
-            // 패킷 추출
-            const packet = buffer.slice(0, 7);
-
-            // CRC 검증 (Modbus RTU: Low Byte 먼저, High Byte 나중)
-            const dataPart = packet.slice(0, 5);
-            const receivedCRC = packet[5] | (packet[6] << 8);
-            const calculatedCRC = calculateModbusCRC(dataPart);
-
-            if (receivedCRC === calculatedCRC) {
-                // 거리 데이터 추출 (mm 단위)
-                const distanceMm = (packet[3] << 8) | packet[4];
-
-                // 퍼센트 계산 (575mm 기준)
-                // 0mm = 100%, 575mm 이상 = 0%
-                let percent = 0;
-                if (distanceMm >= 0 && distanceMm < MAX_DISTANCE_MM) {
-                    percent = Math.round((1 - distanceMm / MAX_DISTANCE_MM) * 100);
-                } else if (distanceMm >= MAX_DISTANCE_MM) {
-                    percent = 0;
-                }
-
-                // 음수 방지
-                if (percent < 0) percent = 0;
-                if (percent > 100) percent = 100;
-
-                currentCollectionPercent = percent;
-                updateCollectionDisplay(percent, distanceMm);
-
-                // 디버그 로그
-                log(`[센서] 거리: ${distanceMm}mm, 수거율: ${percent}%`);
-            } else {
-                log(
-                    `[센서] CRC 오류: 수신=0x${receivedCRC.toString(16).padStart(4, '0')}, 계산=0x${calculatedCRC.toString(16).padStart(4, '0')}`,
-                );
-            }
-
-            // 처리된 패킷 제거
-            buffer = buffer.slice(7);
-        } else {
-            // 잘못된 패킷 - 1바이트 건너뛰기
-            buffer = buffer.slice(1);
-        }
-    }
-
-    return buffer;
-}
-
-// 수거 상태 UI 업데이트
-function updateCollectionDisplay(percent, distanceMm) {
-    const inputStatus = document.getElementById('inputStatus');
-    const inputStatusBox = document.getElementById('inputStatusBox');
-    const startButton = document.getElementById('startButton');
-
-    if (inputStatus) {
-        // 90%일 때 불가능으로 표시
-        if (percent >= 90) {
-            inputStatus.textContent = '불가능 (90%)';
-            inputStatus.style.color = '#e74c3c'; // 빨간색
-            if (inputStatusBox) {
-                inputStatusBox.classList.add('disabled');
-            }
-            // 시작 버튼 비활성화
-            if (startButton && !isProcessing) {
-                startButton.disabled = true;
-                startButton.style.opacity = '0.5';
-                startButton.style.cursor = 'not-allowed';
-            }
-        } else if (percent >= 80) {
-            inputStatus.textContent = `가능 (${percent}%)`;
-            inputStatus.style.color = '#f39c12'; // 주황색 (거의 가득 참)
-            if (inputStatusBox) {
-                inputStatusBox.classList.remove('disabled');
-            }
-            // 시작 버튼 활성화
-            if (startButton && !isProcessing) {
-                startButton.disabled = false;
-                startButton.style.opacity = '1';
-                startButton.style.cursor = 'pointer';
-            }
-        } else if (percent >= 50) {
-            inputStatus.textContent = `가능 (${percent}%)`;
-            inputStatus.style.color = '#f6ad55'; // 연한 주황색
-            if (inputStatusBox) {
-                inputStatusBox.classList.remove('disabled');
-            }
-            // 시작 버튼 활성화
-            if (startButton && !isProcessing) {
-                startButton.disabled = false;
-                startButton.style.opacity = '1';
-                startButton.style.cursor = 'pointer';
-            }
-        } else {
-            inputStatus.textContent = `가능 (${percent}%)`;
-            inputStatus.style.color = '#27ae60'; // 초록색
-            if (inputStatusBox) {
-                inputStatusBox.classList.remove('disabled');
-            }
-            // 시작 버튼 활성화
-            if (startButton && !isProcessing) {
-                startButton.disabled = false;
-                startButton.style.opacity = '1';
-                startButton.style.cursor = 'pointer';
-            }
-        }
-    }
-}
-
-// 센서 연결 해제
-async function disconnectSensor() {
-    try {
-        sensorPolling = false;
-
-        if (sensorReader) {
-            await sensorReader.cancel();
-            sensorReader.releaseLock();
-            sensorReader = null;
-        }
-
-        if (sensorWriter) {
-            sensorWriter.releaseLock();
-            sensorWriter = null;
-        }
-
-        if (sensorPort) {
-            await sensorPort.close();
-            sensorPort = null;
-        }
-
-        log('[센서] 연결이 해제되었습니다.');
-    } catch (error) {
-        log(`[센서] 연결 해제 오류: ${error.message}`);
-    }
 }
 
 // ========================================
@@ -507,7 +230,7 @@ async function connectMainController() {
         log('[메인] Modbus RTU 컨트롤러 포트를 선택해주세요...');
 
         // 이미 사용 중인 포트 목록
-        const alreadyUsedPorts = [sensorPort, servoPort].filter((p) => p !== null);
+        const alreadyUsedPorts = [servoPort].filter((p) => p !== null);
 
         const targetPort = await navigator.serial.requestPort({
             filters: [{ usbVendorId: 0x0403, usbProductId: 0x6001 }],
@@ -569,7 +292,7 @@ async function connectServoController() {
         log('[서보] Dynamixel 컨트롤러 포트를 선택해주세요...');
 
         // 이미 사용 중인 포트 목록
-        const alreadyUsedPorts = [mainPort, sensorPort].filter((p) => p !== null);
+        const alreadyUsedPorts = [mainPort].filter((p) => p !== null);
 
         const targetPort = await navigator.serial.requestPort({
             filters: [{ usbVendorId: 0x0403, usbProductId: 0x6001 }],
@@ -680,36 +403,46 @@ async function stopDoor() {
     return await writeModbusRegister(ModbusReg.DOOR_CMD, 0);
 }
 
-async function setUV(on) {
-    log(`[UV] ${on ? 'ON' : 'OFF'} 명령 전송`);
-    return await writeModbusRegister(ModbusReg.UV_CTRL, on ? 1 : 0);
-}
-
 async function setPump(on) {
     log(`[펌프] ${on ? 'ON' : 'OFF'} 명령 전송`);
     return await writeModbusRegister(ModbusReg.PUMP_CTRL, on ? 1 : 0);
 }
 
-async function setFan(on) {
-    log(`[팬] ${on ? 'ON' : 'OFF'} 명령 전송`);
-    await writeModbusRegister(ModbusReg.FAN1_CTRL, on ? 1 : 0);
-    await delay(50);
-    return await writeModbusRegister(ModbusReg.FAN2_CTRL, on ? 1 : 0);
-}
-
 async function setInverter(on) {
-    log(`[인버터] ${on ? 'ON' : 'OFF'} 명령 전송`);
-    return await writeModbusRegister(ModbusReg.INVERTER_CTRL, on ? 1 : 0);
+    log(`[인버터] 현재 펌웨어 레지스터에 연결되어 있지 않아 건너뜀 (${on ? 'ON' : 'OFF'})`);
+    return true;
 }
 
 async function setFwd(on) {
-    log(`[FWD] ${on ? 'ON' : 'OFF'} 명령 전송`);
-    return await writeModbusRegister(ModbusReg.FWD_SIGNAL, on ? 1 : 0);
+    log(`[FWD] 현재 펌웨어 레지스터에 연결되어 있지 않아 건너뜀 (${on ? 'ON' : 'OFF'})`);
+    return true;
 }
 
 async function setRev(on) {
-    log(`[REV] ${on ? 'ON' : 'OFF'} 명령 전송`);
-    return await writeModbusRegister(ModbusReg.REV_SIGNAL, on ? 1 : 0);
+    log(`[REV] 현재 펌웨어 레지스터에 연결되어 있지 않아 건너뜀 (${on ? 'ON' : 'OFF'})`);
+    return true;
+}
+
+async function startCupPress() {
+    log('[압축] 시작 명령 전송');
+    return await writeModbusRegister(ModbusReg.CUP_PRESS_CTRL, 1);
+}
+
+async function stopCupPress() {
+    log('[압축] 정지 명령 전송');
+    return await writeModbusRegister(ModbusReg.CUP_PRESS_CTRL, 0);
+}
+
+async function classifyCurrentCup() {
+    const isPaperCup = currentCupType === 'PAPER';
+    const command = isPaperCup ? 2 : 1;
+    log(`[분류] ${isPaperCup ? '종이컵' : 'PET컵'} ${isPaperCup ? '오른쪽' : '왼쪽'} 회전 명령 전송`);
+    return await writeModbusRegister(ModbusReg.CLASSIFY_CTRL, command);
+}
+
+function setCurrentCupType(type) {
+    currentCupType = type === 'PAPER' ? 'PAPER' : 'PET';
+    log(`[분류] 컵 종류 설정: ${currentCupType}`);
 }
 
 async function getDoorStatus() {
@@ -837,7 +570,7 @@ async function initializeSystem() {
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     log('PETCUP 시작');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    log('⚠️ 포트 선택 순서: 1) 거리센서 → 2) 메인485 → 3) 서보');
+    log('⚠️ 포트 선택 순서: 1) 메인485 → 2) 서보');
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const systemBox = document.getElementById('systemBox');
@@ -849,19 +582,8 @@ async function initializeSystem() {
         systemBox.classList.add('disabled');
     }
 
-    // 1. 거리 센서 연결 (먼저 연결)
-    log('📏 [1/3] 거리 센서 연결 중...');
-    const sensorConnected = await connectDistanceSensor();
-    if (!sensorConnected) {
-        log('❌ 거리 센서 연결 실패');
-        if (systemStatusText) systemStatusText.textContent = '연결 실패';
-        return;
-    }
-
-    await delay(500);
-
-    // 2. 메인 컨트롤러 연결
-    log('📦 [2/3] 메인 컨트롤러 연결 중...');
+    // 1. 메인 컨트롤러 연결
+    log('📦 [1/2] 메인 컨트롤러 연결 중...');
     const mainConnected = await connectMainController();
     if (!mainConnected) {
         log('❌ 메인 컨트롤러 연결 실패');
@@ -871,8 +593,8 @@ async function initializeSystem() {
 
     await delay(500);
 
-    // 3. 서보 컨트롤러 연결
-    log('🤖 [3/3] 서보 컨트롤러 연결 중...');
+    // 2. 서보 컨트롤러 연결
+    log('🤖 [2/2] 서보 컨트롤러 연결 중...');
     const servoConnected = await connectServoController();
     if (!servoConnected) {
         log('❌ 서보 컨트롤러 연결 실패');
@@ -910,18 +632,11 @@ async function startProcess() {
         return;
     }
 
-    // 수거율이 100%인지 확인
-    if (currentCollectionPercent >= 90) {
-        log('⚠️ 수거함이 가득 찼습니다. 비운 후 다시 시도해주세요.');
-        alert('수거함이 가득 찼습니다 (100%).\n수거함을 비운 후 다시 시도해주세요.');
-        return;
-    }
-
     // 시스템 연결 상태 확인 및 자동 연결
-    if (!mainWriter || !servoWriter || !sensorWriter) {
+    if (!mainWriter || !servoWriter) {
         log('🔌 시스템이 연결되지 않았습니다. 자동 연결을 시작합니다...');
         const initialized = await initializeSystem();
-        if (!initialized && (!mainWriter || !servoWriter || !sensorWriter)) {
+        if (!initialized && (!mainWriter || !servoWriter)) {
             log('❌ 시스템 연결에 실패했습니다. 프로세스를 시작할 수 없습니다.');
             alert('시스템 연결에 실패했습니다. 하드웨어 연결을 확인하세요.');
             return;
@@ -939,12 +654,6 @@ async function startProcess() {
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
-        // UV와 FAN 켜기
-        log('💡 UV 라이트 및 팬 가동 중...');
-        await setUV(true);
-        await setFan(true);
-        await delay(500);
-
         // 1단계: 투입구 열림
         processStep = 1;
         updateProcessStep(processStep, '🚪', '투입구 열기', '문이 열리고 있습니다...');
@@ -978,89 +687,50 @@ async function confirmInsertion() {
     hideConfirmButton();
 
     try {
-        // 4단계: 그리퍼 닫기
+        // 4단계: 투입구 닫기 + 그리퍼 잡기
         processStep = 4;
-        updateProcessStep(processStep, '✊', '컵 잡기', '컵을 잡고 있습니다...');
+        updateProcessStep(processStep, '🚪', '투입구 닫기', '투입구를 닫고 컵을 잡고 있습니다...');
+        log(`[${processStep}/${totalSteps}] 투입구 닫기...`);
+        await closeDoor();
+        await delay(3000);
         log(`[${processStep}/${totalSteps}] 그리퍼 닫기...`);
         await moveGripper(false);
         await delay(1500);
 
-        // 5단계: 문 닫기
+        // 5단계: 세척 후 그리퍼 열기
         processStep = 5;
-        updateProcessStep(processStep, '🚪', '투입구 닫기', '투입구를 닫고 있습니다...');
-        log(`[${processStep}/${totalSteps}] 투입구 닫기...`);
-        await closeDoor();
-        await delay(3000);
-
-        // 6단계: 물 3초 분사 + 2초 대기
-        processStep = 6;
         updateProcessStep(processStep, '💧', '세척 중', '깨끗하게 세척하고 있습니다...');
         log(`[${processStep}/${totalSteps}] 물 분사 시작...`);
         await setPump(true);
         await delay(3000);
         await setPump(false);
         log('물 분사 완료');
-        log('세척 후 대기 중...');
-        await delay(2000);
-
-        // 7단계: 서보 모터 뒤로 이동
-        processStep = 7;
-        updateProcessStep(processStep, '🔄', '이동 중', '투입 위치로 이동하고 있습니다...');
-        log(`[${processStep}/${totalSteps}] 서보 모터 뒤로 이동...`);
-        await moveServo(false);
-        await delay(2000);
-
-        // 8단계: 그리퍼 열고 2초 대기
-        processStep = 8;
-        updateProcessStep(processStep, '📤', '투입 중', '컵을 투입하고 있습니다...');
-        log(`[${processStep}/${totalSteps}] 그리퍼 열기 (투입)...`);
+        log(`[${processStep}/${totalSteps}] 그리퍼 열기...`);
         await moveGripper(true);
-        await delay(2000);
-
-        // 9단계: 그리퍼 닫기
-        processStep = 9;
-        updateProcessStep(processStep, '🔄', '정리 중', '투입하신 컵을 정리중입니다...');
-        log(`[${processStep}/${totalSteps}] 그리퍼 닫기...`);
-        await moveGripper(false);
         await delay(1500);
 
-        // 10단계: 서보 모터 앞으로 (초기 위치)
-        processStep = 10;
-        updateProcessStep(processStep, '🏠', '복귀 중', '초기 위치로 돌아가고 있습니다...');
-        log(`[${processStep}/${totalSteps}] 서보 모터 앞으로 이동...`);
-        await moveServo(true);
-        await delay(2000);
+        // 6단계: 압축 + 분류
+        processStep = 6;
+        updateProcessStep(processStep, '📦', '압축/분류 중', '컵을 압축한 뒤 적재함으로 분류하고 있습니다...');
+        log(`[${processStep}/${totalSteps}] 압축 시작...`);
+        await startCupPress();
+        await delay(5000);
+        log(`[${processStep}/${totalSteps}] 컵 분류 시작...`);
+        await classifyCurrentCup();
+        await delay(5000);
 
         // 프로세스 완료
-        updateProcessStep(10, '✅', '완료!', '감사합니다. 포인트가 적립되었습니다.');
+        updateProcessStep(totalSteps, '✅', '완료!', '컵 처리가 완료되었습니다.');
         log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         log('✅ 프로세스 완료!');
         log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-        // FA-50 인버터 3초 추가 가동
-        log('⚡ FA-50 인버터 3초 추가 가동 중...');
-        await delay(3000);
-
-        // UV, FAN, FWD 신호 끄기 (MC12B는 계속 켜진 상태 유지)
-        log('💡 UV 라이트, 팬, FWD 신호 정지...');
-        await setUV(false);
-        await delay(200);
-        await setFan(false);
-        await delay(200);
-        await setFwd(false);
-        log('✅ MC12B(Pin 51)는 계속 켜진 상태로 유지됩니다.');
 
         await delay(3000);
         isProcessing = false;
         hideProcessScreen();
 
-        // 수거율에 따라 버튼 상태 결정
         const startButton = document.getElementById('startButton');
-        if (currentCollectionPercent >= 90) {
-            startButton.disabled = true;
-            startButton.style.opacity = '0.5';
-            startButton.style.cursor = 'not-allowed';
-        } else {
+        if (startButton) {
             startButton.disabled = false;
             startButton.style.opacity = '1';
             startButton.style.cursor = 'pointer';
@@ -1080,29 +750,22 @@ async function stopProcess() {
     hideProcessScreen();
     hideConfirmButton();
 
-    // 수거율에 따라 버튼 상태 결정
     const startButton = document.getElementById('startButton');
-    if (currentCollectionPercent >= 90) {
-        startButton.disabled = true;
-        startButton.style.opacity = '0.5';
-        startButton.style.cursor = 'not-allowed';
-    } else {
+    if (startButton) {
         startButton.disabled = false;
         startButton.style.opacity = '1';
         startButton.style.cursor = 'pointer';
     }
 
-    // 모든 모터 및 장치 정지 (MC12B는 유지)
+    // 모든 모터 및 장치 정지
     if (mainWriter) {
         await stopDoor();
         await delay(200);
         await setPump(false);
         await delay(200);
-        await setUV(false);
+        await stopCupPress();
         await delay(200);
-        await setFan(false);
-        await delay(200);
-        await setFwd(false);
+        await writeModbusRegister(ModbusReg.CLASSIFY_CTRL, 0);
     }
 }
 
@@ -1119,29 +782,22 @@ async function emergencyStop() {
     hideProcessScreen();
     hideConfirmButton();
 
-    // 수거율에 따라 버튼 상태 결정
     const startButton = document.getElementById('startButton');
-    if (currentCollectionPercent >= 90) {
-        startButton.disabled = true;
-        startButton.style.opacity = '0.5';
-        startButton.style.cursor = 'not-allowed';
-    } else {
+    if (startButton) {
         startButton.disabled = false;
         startButton.style.opacity = '1';
         startButton.style.cursor = 'pointer';
     }
 
-    // 긴급 정지: 모든 모터 및 장치 정지 (MC12B는 유지)
+    // 긴급 정지: 모든 모터 및 장치 정지
     if (mainWriter) {
         await stopDoor();
         await delay(200);
         await setPump(false);
         await delay(200);
-        await setUV(false);
+        await stopCupPress();
         await delay(200);
-        await setFan(false);
-        await delay(200);
-        await setFwd(false);
+        await writeModbusRegister(ModbusReg.CLASSIFY_CTRL, 0);
     }
 }
 
