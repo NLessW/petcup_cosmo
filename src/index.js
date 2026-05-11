@@ -243,6 +243,7 @@ function savePortConfig(role, port) {
     config[role] = {
         usbVendorId: info.usbVendorId || null,
         usbProductId: info.usbProductId || null,
+        serialNumber: info.serialNumber || null,
         savedAt: Date.now(),
     };
     localStorage.setItem(PORT_STORAGE_KEY, JSON.stringify(config));
@@ -253,11 +254,29 @@ function hasStoredPortConfig(role) {
     return Boolean(config[role]);
 }
 
+function findSavedPort(savedPorts, role) {
+    const config = getStoredPortConfig()[role];
+    if (!config || !config.usbVendorId) return null;
+
+    for (const port of savedPorts) {
+        const info = port.getInfo ? port.getInfo() : {};
+        const vendorMatch = info.usbVendorId === config.usbVendorId;
+        const productMatch = !config.usbProductId || info.usbProductId === config.usbProductId;
+        const serialMatch = !config.serialNumber || info.serialNumber === config.serialNumber;
+
+        if (vendorMatch && productMatch && serialMatch) {
+            return port;
+        }
+    }
+    return null;
+}
+
 function getPortInfoText(port) {
     const info = port.getInfo ? port.getInfo() : {};
     const vendor = info.usbVendorId ? `0x${info.usbVendorId.toString(16).padStart(4, '0')}` : 'unknown';
     const product = info.usbProductId ? `0x${info.usbProductId.toString(16).padStart(4, '0')}` : 'unknown';
-    return `${vendor}/${product}`;
+    const serial = info.serialNumber ? ` / SN:${info.serialNumber}` : '';
+    return `${vendor}/${product}${serial}`;
 }
 
 function getUnusedSavedPort(savedPorts, usedPorts, preferredIndex) {
@@ -272,7 +291,7 @@ async function connectMainController(useSavedPort = true) {
 
         if (useSavedPort && hasStoredPortConfig('main')) {
             const savedPorts = await navigator.serial.getPorts();
-            targetPort = getUnusedSavedPort(savedPorts, alreadyUsedPorts, 0);
+            targetPort = findSavedPort(savedPorts, 'main');
             if (targetPort) {
                 log(`[메인] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
             } else {
@@ -349,7 +368,7 @@ async function connectServoController(useSavedPort = true) {
 
         if (useSavedPort && hasStoredPortConfig('servo')) {
             const savedPorts = await navigator.serial.getPorts();
-            targetPort = getUnusedSavedPort(savedPorts, alreadyUsedPorts, 0);
+            targetPort = findSavedPort(savedPorts, 'servo');
             if (targetPort) {
                 log(`[서보] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
             } else {
@@ -633,7 +652,12 @@ function startCompletionWait() {
     clearCompletionTimer();
     completionCountdown = 10;
     showCompletionActions();
-    updateProcessStep(totalSteps, '✅', '완료!', `추가 투입하거나 처음으로 돌아갈 수 있습니다. ${completionCountdown}초 후 메인 화면으로 이동합니다.`);
+    updateProcessStep(
+        totalSteps,
+        '✅',
+        '완료!',
+        `추가 투입하거나 처음으로 돌아갈 수 있습니다. ${completionCountdown}초 후 메인 화면으로 이동합니다.`,
+    );
 
     completionTimer = setInterval(() => {
         completionCountdown -= 1;
@@ -642,7 +666,12 @@ function startCompletionWait() {
             return;
         }
 
-        updateProcessStep(totalSteps, '✅', '완료!', `추가 투입하거나 처음으로 돌아갈 수 있습니다. ${completionCountdown}초 후 메인 화면으로 이동합니다.`);
+        updateProcessStep(
+            totalSteps,
+            '✅',
+            '완료!',
+            `추가 투입하거나 처음으로 돌아갈 수 있습니다. ${completionCountdown}초 후 메인 화면으로 이동합니다.`,
+        );
     }, 1000);
 }
 
