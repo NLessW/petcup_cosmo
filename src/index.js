@@ -396,11 +396,18 @@ async function connectMainController(useSavedPort = true) {
         let targetPort = null;
 
         if (useSavedPort && hasStoredPortConfig('main')) {
-            targetPort = await findPortByProtocol('main', alreadyUsedPorts);
+            const savedPorts = await navigator.serial.getPorts();
+            targetPort = getUnusedSavedPort(savedPorts, alreadyUsedPorts, 0);
             if (targetPort) {
-                log(`[메인] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
+                log(`[메인] 저장된 포트 순서로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
             } else {
-                log('[메인] Modbus 응답 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+                log('[메인] 저장된 포트를 찾지 못했습니다. 프로토콜 판별로 전환합니다.');
+                targetPort = await findPortByProtocol('main', alreadyUsedPorts);
+                if (targetPort) {
+                    log(`[메인] Modbus 응답 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
+                } else {
+                    log('[메인] Modbus 응답 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+                }
             }
         }
 
@@ -409,11 +416,6 @@ async function connectMainController(useSavedPort = true) {
             targetPort = await navigator.serial.requestPort({
                 filters: USB_SERIAL_FILTERS,
             });
-
-            if (!(await isMainControllerPort(targetPort))) {
-                log('[메인] 선택한 포트에서 Modbus 응답을 확인하지 못했습니다.');
-                return false;
-            }
         }
 
         // 이미 사용 중인 포트인지 확인
@@ -477,11 +479,18 @@ async function connectServoController(useSavedPort = true) {
         let targetPort = null;
 
         if (useSavedPort && hasStoredPortConfig('servo')) {
-            targetPort = await findPortByProtocol('servo', alreadyUsedPorts);
+            const savedPorts = await navigator.serial.getPorts();
+            targetPort = getUnusedSavedPort(savedPorts, alreadyUsedPorts, 0);
             if (targetPort) {
-                log(`[서보] 저장된 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
+                log(`[서보] 저장된 포트 순서로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
             } else {
-                log('[서보] Dynamixel 응답 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+                log('[서보] 저장된 포트를 찾지 못했습니다. 프로토콜 판별로 전환합니다.');
+                targetPort = await findPortByProtocol('servo', alreadyUsedPorts);
+                if (targetPort) {
+                    log(`[서보] Dynamixel 응답 포트로 자동 연결 시도 (${getPortInfoText(targetPort)})`);
+                } else {
+                    log('[서보] Dynamixel 응답 포트를 찾지 못했습니다. 포트 선택창을 엽니다.');
+                }
             }
         }
 
@@ -490,11 +499,6 @@ async function connectServoController(useSavedPort = true) {
             targetPort = await navigator.serial.requestPort({
                 filters: USB_SERIAL_FILTERS,
             });
-
-            if (!(await isServoControllerPort(targetPort))) {
-                log('[서보] 선택한 포트에서 Dynamixel 응답을 확인하지 못했습니다.');
-                return false;
-            }
         }
 
         // 이미 사용 중인 포트인지 확인
