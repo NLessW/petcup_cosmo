@@ -1,0 +1,17 @@
+node_modules/
+dist/
+out/
+npm-debug.log*
+
+# Electron Forge build artifacts
+out/
+*.exe
+*.msi
+*.dmg
+*.zip
+*.tar.gz
+
+# OS specific
+.DS_Store
+desktop.ini
+Thumbs.db

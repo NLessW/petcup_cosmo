@@ -1,4 +1,4 @@
-// ========================================
+﻿// ========================================
 // PETMON 자동 분류 시스템 - Modbus RTU
 // ========================================
 
@@ -27,6 +27,10 @@ let completionCountdown = 10;
 const MODBUS_SLAVE_ID = 1;
 const PORT_STORAGE_KEY = 'cupbox.serialPorts.v1';
 const USB_SERIAL_FILTERS = [{ usbVendorId: 0x0403, usbProductId: 0x6001 }];
+
+function hasElectronSerialBridge() {
+    return Boolean(window.cupboxSerial);
+}
 
 // ========================================
 // Modbus RTU Register Map
@@ -392,6 +396,20 @@ async function findPortByProtocol(role, usedPorts) {
 
 async function connectMainController(useSavedPort = true) {
     try {
+        if (hasElectronSerialBridge()) {
+            const result = await window.cupboxSerial.connect('main');
+            if (!result.ok) {
+                log(`[메인] Electron 연결 실패: ${result.error}`);
+                return false;
+            }
+
+            mainPort = { electron: true, path: result.path };
+            mainReader = { electron: true };
+            mainWriter = { electron: true };
+            log(`[메인] Electron 브릿지 연결 성공: ${result.path}`);
+            return true;
+        }
+
         const alreadyUsedPorts = [servoPort].filter((p) => p !== null);
         let targetPort = null;
 
@@ -473,6 +491,20 @@ async function readMainData() {
 
 async function connectServoController(useSavedPort = true) {
     try {
+        if (hasElectronSerialBridge()) {
+            const result = await window.cupboxSerial.connect('servo');
+            if (!result.ok) {
+                log(`[서보] Electron 연결 실패: ${result.error}`);
+                return false;
+            }
+
+            servoPort = { electron: true, path: result.path };
+            servoReader = { electron: true };
+            servoWriter = { electron: true };
+            log(`[서보] Electron 브릿지 연결 성공: ${result.path}`);
+            return true;
+        }
+
         const alreadyUsedPorts = [mainPort].filter((p) => p !== null);
         let targetPort = null;
 
@@ -546,6 +578,18 @@ async function writeModbusRegister(regAddr, value) {
     }
     try {
         const packet = buildWriteSingleRegisterPacket(regAddr, value);
+        if (hasElectronSerialBridge()) {
+            const result = await window.cupboxSerial.writeMain(Array.from(packet));
+            if (!result.ok) {
+                log('[메인] 전송 오류: ' + result.error);
+                return false;
+            }
+
+            log(`[전송] Electron Modbus Write: Addr=0x${regAddr.toString(16).padStart(4, '0')} Value=${value}`);
+            await delay(50);
+            return true;
+        }
+
         await mainWriter.write(packet);
 
         let hexStr = `[전송] Modbus Write: Addr=0x${regAddr.toString(16).padStart(4, '0')} Value=${value} [`;
@@ -570,6 +614,18 @@ async function readModbusRegisters(startAddr, numRegs) {
     }
     try {
         const packet = buildReadRegistersPacket(startAddr, numRegs);
+        if (hasElectronSerialBridge()) {
+            const result = await window.cupboxSerial.writeMain(Array.from(packet));
+            if (!result.ok) {
+                log('[메인] 전송 오류: ' + result.error);
+                return false;
+            }
+
+            log(`[전송] Electron Modbus Read: Addr=0x${startAddr.toString(16).padStart(4, '0')} Count=${numRegs}`);
+            await delay(50);
+            return true;
+        }
+
         await mainWriter.write(packet);
 
         let hexStr = `[전송] Modbus Read: Addr=0x${startAddr.toString(16).padStart(4, '0')} Count=${numRegs} [`;
@@ -659,6 +715,17 @@ async function sendServoCommand(packetArray) {
         return false;
     }
     try {
+        if (hasElectronSerialBridge()) {
+            const result = await window.cupboxSerial.writeServo(Array.from(packetArray));
+            if (!result.ok) {
+                log('[서보] 전송 오류: ' + result.error);
+                return false;
+            }
+
+            await delay(100);
+            return true;
+        }
+
         await servoWriter.write(packetArray);
         await delay(100);
         return true;
@@ -816,6 +883,18 @@ function clearLog() {
 
 function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+if (hasElectronSerialBridge()) {
+    window.cupboxSerial.onData((payload) => {
+        if (payload.error) {
+            log(`[${payload.role}] 시리얼 오류: ${payload.error}`);
+            return;
+        }
+
+        const hex = payload.bytes.map((byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        log(`[${payload.role}] RX: ${hex}`);
+    });
 }
 
 // ========================================
@@ -1090,7 +1169,7 @@ log('🚀 "시작하기" 버튼을 눌러 프로세스를 시작하세요');
 log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
 // Web Serial API 지원 확인
-if (!('serial' in navigator)) {
+if (!hasElectronSerialBridge() && !('serial' in navigator)) {
     log('⚠️ 경고: 이 브라우저는 Web Serial API를 지원하지 않습니다.');
     log('Chrome 또는 Edge 브라우저를 사용하세요.');
     document.getElementById('operationStatus').textContent = '지원 안됨';

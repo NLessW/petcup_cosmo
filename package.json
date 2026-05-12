@@ -1,0 +1,59 @@
+{
+    "name": "cupbox-cosmo",
+    "version": "1.0.0",
+    "description": "CUPBOX COSMO - PET Cup Sorting System",
+    "author": "ReHAN Co. Ltd.",
+    "private": true,
+    "main": "electron/main.js",
+    "homepage": "./",
+    "scripts": {
+        "start": "electron .",
+        "build": "tsc",
+        "pack": "electron-forge publish --dry-run",
+        "make": "electron-forge make",
+        "publish": "electron-forge publish"
+    },
+    "dependencies": {
+        "serialport": "^12.0.0"
+    },
+    "devDependencies": {
+        "@electron-forge/cli": "^7.4.0",
+        "@electron-forge/maker-deb": "^7.4.0",
+        "@electron-forge/maker-rpm": "^7.4.0",
+        "@electron-forge/maker-squirrel": "^7.4.0",
+        "@electron-forge/maker-zip": "^7.4.0",
+        "@electron-forge/plugin-auto-unpack-natives": "^7.4.0",
+        "electron": "^33.0.0"
+    },
+    "config": {
+        "forge": {
+            "packagerConfig": {
+                "name": "CUPBOX COSMO",
+                "appVersion": "1.0.0",
+                "buildVersion": "1.0.0",
+                "win32metadata": {
+                    "CompanyName": "ReHAN Co. Ltd.",
+                    "ProductName": "CUPBOX COSMO",
+                    "FileDescription": "PET Cup Sorting System Controller"
+                }
+            },
+            "makers": [
+                {
+                    "name": "@electron-forge/maker-squirrel",
+                    "config": {
+                        "name": "CUPBOX_COSMO",
+                        "authors": "ReHAN Co. Ltd.",
+                        "exe": "CUPBOX COSMO.exe",
+                        "setupExe": "CUPBOX-COSMO-Setup.exe"
+                    }
+                },
+                {
+                    "name": "@electron-forge/maker-zip",
+                    "platforms": [
+                        "win32"
+                    ]
+                }
+            ]
+        }
+    }
+}
